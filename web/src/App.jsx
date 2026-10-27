@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Component, useEffect, useState } from "react";
 import { Async, useApi } from "./ui.jsx";
 import Overview from "./tabs/Overview.jsx";
 import Layout from "./tabs/Layout.jsx";
@@ -23,12 +23,30 @@ const TABS = [
   ["forecast", "Forecast & re-slotting", Forecast],
   ["method", "Method", Method],
 ];
+class Boundary extends Component {
+  state = { error: null };
+  static getDerivedStateFromError(error) {
+    return { error };
+  }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return (
+      <div className="state error">
+        This tab failed to display: {String(this.state.error.message || this.state.error)}
+        <div style={{ marginTop: 12 }}>
+          <button className="btn" onClick={() => this.setState({ error: null })}>Try again</button>
+        </div>
+      </div>
+    );
+  }
+}
+
 const ORDER = ["fulfilment_centre", "dark_store"];
 const PROFILE = { fulfilment_centre: "Fulfilment centre", dark_store: "Dark store" };
 
 export default function App() {
   const runs = useApi("/api/runs");
-  const [runId, setRunId] = useState(null);
+  const [runId, setRunId] = useState(() => Number(new URLSearchParams(window.location.search).get("run")) || null);   // ?run=<id> picks a scenario
   const [tab, setTab] = useState(() => window.location.hash.slice(1) || "overview");
   useEffect(() => {
     window.location.hash = tab;
@@ -71,7 +89,11 @@ export default function App() {
           list.length === 0 ? (
             <div className="state">No runs stored yet. Run <code>python scripts/seed_db.py</code> to create one.</div>
           ) : (
-            <Async state={detail}>{(run) => <Tab key={`${run.id}-${tab}`} run={run} />}</Async>
+            <Async state={detail}>{(run) => (
+              <Boundary key={`${run.id}-${tab}`}>
+                <Tab run={run} />
+              </Boundary>
+            )}</Async>
           )
         }
       </Async>
