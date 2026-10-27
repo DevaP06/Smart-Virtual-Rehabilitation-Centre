@@ -27,8 +27,13 @@ export default function Eda({ run }) {
               <div className="panel">
                 <h3>Affinity: orders containing both SKUs</h3>
                 <Plot
-                  data={[{ type: "heatmap", z: e.cooc.matrix, x: e.cooc.skus, y: e.cooc.skus, colorscale: "Blues", showscale: false }]}
-                  layout={{ xaxis: { showticklabels: false }, yaxis: { showticklabels: false, autorange: "reversed" } }}
+                  data={[{ type: "heatmap", z: e.cooc.matrix.map((r) => r.map((v) => Math.log1p(v))), text: e.cooc.matrix, x: e.cooc.skus, y: e.cooc.skus,
+                    hovertemplate: "%{x} and %{y}<br>%{text} orders together<extra></extra>", colorscale: "Viridis", colorbar: { title: { text: "log(1+orders)" }, thickness: 12 } }]}
+                  layout={{
+                    // SKU ids such as 22423 look like numbers to Plotly: force category axes or the cells collapse to a dot
+                    xaxis: { type: "category", showticklabels: false },
+                    yaxis: { type: "category", showticklabels: false, autorange: "reversed" },
+                  }}
                 />
                 <p>
                   The 30 fastest SKUs. Louvain clustering on lift-filtered pairs finds <b>{e.clusters.n_clusters}</b> communities
