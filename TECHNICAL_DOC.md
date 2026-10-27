@@ -23,7 +23,7 @@ layout grid 70/30 split   forecast,       → swap search →    every rule     
 
 The heavy computation runs offline (`python scripts/seed_db.py`) and is stored in Postgres. The deployed API is read-only, so the dashboard shows exactly the stored results and there is no second copy of the numbers. This also fits Vercel's serverless limits (short functions, small bundle).
 
-Cross-cutting: all tunables in `core/config.py`, fixed seeds, run timings stored in `run_log`, tests in `tests/` (31), CI in `.github/workflows/ci.yml`, `Dockerfile`.
+Cross-cutting: all tunables in `core/config.py`, fixed seeds, run timings stored in `run_log`, tests in `tests/` (34), CI in `.github/workflows/ci.yml`, `Dockerfile`.
 
 ## 2. Data
 
@@ -124,6 +124,14 @@ Re-slotting with the LightGBM forecast made 74 swaps and walked **1,664 km inclu
 5. **Chaotic stow (B1) behaves like B0** here: orders are multi-line (19.8 lines on average, 9.7% single-line), which is where random stow is expected to lose.
 6. **Re-slotting is the one refinement with a clear net gain**, because it responds to demand drift rather than refitting the training period.
 
+## 7b. Decision-support extras
+
+- **Trade-off explorer.** 36 layouts (affinity weight 0/0.5/1.5/3 × best-fit weight 0/0.5/1.5 × golden-zone strength 0/0.5/1) were placed and scored on the held-out orders, all rule-compliant. The extremes show the real choice: the shortest walk is 150.5 m per order (affinity 3, no best-fit, no golden-zone penalty) but only 38% of class-A picks at golden height and 14.3% fill; the highest fill rate is 17.7% (best-fit 1.5, golden zone on) but costs 189.3 m per order and about 3,200 refills a day versus about 2,000. The default (Full) is not on the Pareto front for distance vs fill rate; it is a compromise across five KPIs.
+- **Demand-surge stress test.** In the last 4 weeks, orders containing 150 mid/slow-moving SKUs are repeated so those items sell about 8× as much. The frozen layout walks 3,815 km over the held-out period; the weekly re-slotting planner (forecast, swap if the weekly saving exceeds 150 m-equivalents, 20 swaps a week, every swap rule-checked) walks 3,476 km including move cost, 8.9% less, with 85 swaps and 0 violations. The planner lags the first surge week because it forecasts from past weeks.
+- **Business-impact calculator.** Converts the measured per-order time and distance gains and the refill increase into picker-hours, walking distance and money with editable assumptions (orders per day, operating days, cost per hour, minutes per refill). It is arithmetic on simulated numbers and says so; the defaults are illustrative.
+- **Per-SKU explanation.** For the Full layout, each SKU's cost is split into distance, shelf height, wasted space and distance to bought-together items, against the three cheapest alternative bins and its partner SKUs. Alternatives are bins still free in the final layout that pass the static rules; bin-load limits are not re-checked for them.
+- **Animated pick path.** The same held-out order walked on three layouts, under return or S-shape routing.
+
 ## 8. Complexity (N SKUs, M bins, b lines per order)
 
 | Component | Complexity | Measured (N=1,500, M=4,000) |
@@ -169,6 +177,6 @@ Still missing for production use: login and per-company data separation, an on-d
 ## 11. Reproduce
 
     pip install -r requirements-engine.txt
-    pytest -q tests                                              # 31 tests, ~30 s
+    pytest -q tests                                              # 34 tests, ~1 min
     python scripts/seed_db.py --orders data/raw/online_retail_II.csv   # needs DATABASE_URL (or SQLite default)
     uvicorn api.index:app --port 8000 & (cd web && npm install && npm run dev)

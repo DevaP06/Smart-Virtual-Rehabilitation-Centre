@@ -102,3 +102,26 @@ def test_artifact_endpoints(client):
     assert "pareto" in client.get("/api/runs/1/eda").json()
     assert client.get("/api/runs/999").status_code == 404
     assert client.get("/api/runs/1").json()["run_log"]["total"] > 0
+
+
+def test_tradeoff_grid_is_feasible_and_spans_the_trade_off(client):
+    g = client.get("/api/runs/1/tradeoff").json()
+    assert len(g) == 36 and all(x["violations"] == 0 and x["unplaced"] == 0 for x in g)
+    fill = [x["fill_rate_pct"] for x in g]
+    assert max(fill) > min(fill)                                  # the weights really move the outcome
+    pair = {(x["lam"]): x["pair_distance_m"] for x in g if x["mu"] == 0 and x["erg"] == 0}
+    assert pair[3] < pair[0]                                      # more affinity weight, co-ordered SKUs closer together
+
+
+def test_explain_endpoint(client, result):
+    sku = next(iter(result["explain"]))
+    e = client.get(f"/api/runs/1/explain/{sku}").json()
+    c = e["chosen"]
+    assert abs(c["total"] - (c["distance"] + c["shelf"] + c["fit"] + c["affinity"])) < 1e-6
+    assert len(e["alternatives"]) <= 3 and e["n_feasible_bins"] >= 1
+    assert client.get("/api/runs/1/explain/NOPE").status_code == 404
+
+
+def test_surge_endpoint_exists(client):
+    r = client.get("/api/runs/1/surge")
+    assert r.status_code == 200          # null when the period is too short for the stress test (dark-store preset)

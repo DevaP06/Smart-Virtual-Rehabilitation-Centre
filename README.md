@@ -5,6 +5,10 @@ Maps SKUs to warehouse bins under hard physical and safety rules, using demand v
 * `v1` tag: Streamlit prototype, greedy optimizer.
 * Current: v2 (this branch). Method, results and limits are in [TECHNICAL_DOC.md](TECHNICAL_DOC.md).
 
+## Dashboard tabs
+
+Results (ablation ladder with CIs) · Business impact (editable ROI) · Layout (heatmaps, rack elevation, per-SKU explanation, CSV downloads) · Pick path (animated) · Trade-offs (weight explorer with Pareto front) · Demand surge (stress test) · Data analysis · Constraints · Forecast & re-slotting · Method.
+
 ## Layout
 
 | Path | What |
@@ -16,7 +20,7 @@ Maps SKUs to warehouse bins under hard physical and safety rules, using demand v
 | `web/` | React + Plotly dashboard (Vite) |
 | `core/ingest.py` | validation of a company's own orders, SKU master and locations (fail closed, row-level errors) |
 | `templates/`, `docs/DATA_FORMAT.md` | CSV templates and column definitions |
-| `tests/` | 31 tests: planted-violation validator tests, algorithm checks, data validation, fail-closed publishing, DB + API end to end |
+| `tests/` | 34 tests: planted-violation validator tests, algorithm checks, data validation, fail-closed publishing, DB + API end to end |
 
 ## Run locally
 
@@ -55,7 +59,7 @@ The deployed API only reads stored results, so no optimizer runs on Vercel. To r
 
 ## API
 
-`GET /api/health`, `/api/runs`, `/api/runs/{id}`, `/api/runs/{id}/kpis`, `/violations`, `/layout?policy=`, `/assignment?policy=` (CSV), `/moves?from=&to=` (CSV), `/eda`, `/forecast`, `/reslot`, `/sensitivity`, `/paths`.
+`GET /api/health`, `/api/runs`, `/api/runs/{id}`, `/api/runs/{id}/kpis`, `/violations`, `/tradeoff`, `/surge`, `/explain/{sku}`, `/layout?policy=`, `/assignment?policy=` (CSV), `/moves?from=&to=` (CSV), `/eda`, `/forecast`, `/reslot`, `/sensitivity`, `/paths`.
 
 ## Data honesty
 

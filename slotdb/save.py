@@ -1,7 +1,7 @@
 """Write one experiment result (core.experiment.run_experiment) to the database."""
 import numpy as np
 from sqlalchemy import delete
-from .models import Artifact, Ci, Kpi, Run, RunLog, Slot, Violation
+from .models import Artifact, Ci, Explanation, Kpi, Run, RunLog, Slot, Violation
 
 
 def clean(o):
@@ -44,11 +44,11 @@ def save_run(Session, R, dataset, replace_profile=True):
     with Session.begin() as s:
         if replace_profile:   # keep one current run per profile so the UI always shows the latest
             for rid in [r.id for r in s.query(Run).filter(Run.profile == R["profile"])]:
-                for t in (Artifact, Kpi, Ci, Violation, Slot, RunLog):
+                for t in (Artifact, Kpi, Ci, Violation, Slot, RunLog, Explanation):
                     s.execute(delete(t).where(t.run_id == rid))
                 s.execute(delete(Run).where(Run.id == rid))
         keep = ("profile", "n_skus", "n_bins", "n_orders", "n_train", "n_test", "best", "headline", "unplaced", "timing",
-                "extra", "grid")
+                "extra", "grid", "test_days")
         run = Run(profile=R["profile"], dataset=dataset, config=R["config"], summary={k: R[k] for k in keep})
         s.add(run)
         s.flush()
@@ -64,7 +64,8 @@ def save_run(Session, R, dataset, replace_profile=True):
         keys = ("policy", "sku_id", "location_id", "aisle", "side", "bay", "level", "bin", "x", "y", "velocity", "abc",
                 "category", "hazard")
         s.bulk_insert_mappings(Slot, [dict(zip(keys, row), run_id=run.id) for row in R["slots"]])
-        for kind in ("eda", "forecast", "reslot", "sensitivity", "paths"):
+        s.bulk_insert_mappings(Explanation, [dict(run_id=run.id, sku_id=k, payload=v) for k, v in R["explain"].items()])
+        for kind in ("eda", "forecast", "reslot", "sensitivity", "paths", "tradeoff", "surge"):
             s.add(Artifact(run_id=run.id, kind=kind, payload=R[kind]))
         for step, sec in R["timing"].items():
             s.add(RunLog(run_id=run.id, step=step, seconds=sec))

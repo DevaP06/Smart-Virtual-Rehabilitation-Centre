@@ -92,3 +92,12 @@ a.btn {
   padding: 6px 12px; text-decoration: none; font-size: 13px;
 }
 a.btn:hover { border-color: var(--accent); }
+
+input[type="number"], input[list] {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; font: inherit; width: 130px;
+}
+input[list] { width: 180px; }
+button.btn {
+  background: var(--panel-2); color: var(--accent); border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px; cursor: pointer; font: inherit; font-size: 13px;
+}
+button.btn:hover { border-color: var(--accent); }

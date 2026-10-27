@@ -6,7 +6,8 @@ import numpy as np
 import pandas as pd
 from .config import CFG
 from .data import load_inputs
-from .engine import (World, abc_classes, assign_full, cooc, naive_assign, pair_stats, partners, velocity)
+from .engine import (State, World, abc_classes, assign_full, cooc, naive_assign, pair_stats, partners, velocity)
+from .extras import explain_layout, surge_test, tradeoff_grid
 from .forecast import forecast_report, reslot_sim, weekly_matrix
 from .refine import cpsat_refine, local_search
 from .simulate import POLICIES, bootstrap_ci, kpis, per_day, route_path, route_stats
@@ -176,6 +177,13 @@ def run_experiment(profile="fulfilment_centre", orders_path=None, regen=False, n
                       violations=validate(r["final_layout"], skus, locs, c)["total"])
     step("forecast+reslot", t0)
 
+    # ---- decision-support extras ----
+    t0 = time.time()
+    tradeoff = tradeoff_grid(skus, locs, w, vel, part, c, test, abc, pairs)
+    surge = surge_test(w, layouts["Full"], skus, orders, cut, c)
+    explain = explain_layout(w, _full_state(w, layouts["Full"]), vel, part, c)
+    step("tradeoff+surge+explain", t0)
+
     # ---- artefacts for the UI ----
     cls = abc.to_dict()
     slots = []
@@ -200,17 +208,20 @@ def run_experiment(profile="fulfilment_centre", orders_path=None, regen=False, n
     return dict(profile=profile, config=_jsonable(c), n_skus=len(skus), n_bins=len(locs), n_orders=int(orders.Order_ID.nunique()),
                 n_train=int(train.Order_ID.nunique()), n_test=int(test.Order_ID.nunique()), best=best, headline="Full", results=results,
                 sensitivity=sens, eda=eda, forecast=fc, reslot=rs_out, extra=extra, unplaced={k: len(v) for k, v in unplaced.items()},
-                slots=slots, paths=paths, timing=timing, grid=dict(aisles=int(locs.Aisle_Number.max()) + 1, bays=int(locs.Bay.max()) + 1))
+                tradeoff=tradeoff, surge=surge, explain=explain,
+                test_days=int(test.Timestamp.dt.date.nunique()), slots=slots, paths=paths, timing=timing, grid=dict(aisles=int(locs.Aisle_Number.max()) + 1, bays=int(locs.Bay.max()) + 1))
 
 
 def _w(w, c):
-    """World carries the ergonomic cost array, so rebuild it when the ladder changes erg_pen."""
-    w2 = World.__new__(World)
-    w2.__dict__.update(w.__dict__)
-    w2.c = c
-    w2.erg = np.array(c["erg_pen"])[w.lvl - 1]
-    w2.slot_cost = w.L.Distance_to_Dispatch_Depot.values + w2.erg
-    return w2
+    return w.with_config(c)
+
+
+def _full_state(w, frame):
+    """Occupancy state for a stored layout (the live State is mutated by CP-SAT and local search)."""
+    st = State(w)
+    for sku, loc in zip(frame.SKU_ID, frame.Location_ID):
+        st.place(w.loc_ix[loc], sku)
+    return st
 
 
 def _communities(pairs, vel, n_ord):

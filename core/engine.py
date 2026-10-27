@@ -76,6 +76,15 @@ class World:
         self.fragile = (S.Handling_Type == "fragile").to_dict()
         self.heavy = ((S.Handling_Type == "heavy") | (S.Weight > c["heavy_kg"])).to_dict()
 
+    def with_config(self, c):
+        """Same warehouse and SKUs under different objective weights (the ergonomic cost array depends on the config)."""
+        import copy
+        w2 = copy.copy(self)
+        w2.c = c
+        w2.erg = np.array(c["erg_pen"])[self.lvl - 1]
+        w2.slot_cost = self.L.Distance_to_Dispatch_Depot.values + w2.erg
+        return w2
+
     def static_mask(self, s):
         """Bins that satisfy every per-SKU rule (dimensions, volume, bin weight, hazard zone, fragile/heavy level)."""
         c, lvl = self.c, self.lvl

@@ -16,7 +16,7 @@ from fastapi.responses import Response  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from sqlalchemy import func, select  # noqa: E402
 
-from slotdb.models import Artifact, Ci, Kpi, Run, RunLog, Slot, Violation, make_engine, session_factory  # noqa: E402
+from slotdb.models import Artifact, Ci, Explanation, Kpi, Run, RunLog, Slot, Violation, make_engine, session_factory  # noqa: E402
 
 app = FastAPI(title="Warehouse Slotting API", root_path="")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
@@ -165,6 +165,25 @@ def reslot(run_id: int, db=Depends(get_db)):
 @app.get("/api/runs/{run_id}/sensitivity")
 def sensitivity(run_id: int, db=Depends(get_db)):
     return _artifact(db, run_id, "sensitivity")
+
+
+@app.get("/api/runs/{run_id}/tradeoff")
+def tradeoff(run_id: int, db=Depends(get_db)):
+    return _artifact(db, run_id, "tradeoff")
+
+
+@app.get("/api/runs/{run_id}/surge")
+def surge(run_id: int, db=Depends(get_db)):
+    return _artifact(db, run_id, "surge")
+
+
+@app.get("/api/runs/{run_id}/explain/{sku}")
+def explain(run_id: int, sku: str, db=Depends(get_db)):
+    _run(db, run_id)
+    e = db.scalar(select(Explanation).where(Explanation.run_id == run_id, Explanation.sku_id == sku))
+    if e is None:
+        raise HTTPException(404, f"no explanation for SKU '{sku}' in run {run_id}")
+    return e.payload
 
 
 @app.get("/api/runs/{run_id}/paths")

@@ -99,6 +99,16 @@ class Artifact(Base):
     payload: Mapped[dict | list | None] = mapped_column(JSON, nullable=True)
 
 
+class Explanation(Base):
+    """Per-SKU cost breakdown for the headline layout (why this bin, and the best alternatives)."""
+    __tablename__ = "explanations"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("runs.id", ondelete="CASCADE"))
+    sku_id: Mapped[str] = mapped_column(String(40))
+    payload: Mapped[dict] = mapped_column(JSON)
+    __table_args__ = (Index("ix_expl_run_sku", "run_id", "sku_id"),)
+
+
 class RunLog(Base):
     __tablename__ = "run_log"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

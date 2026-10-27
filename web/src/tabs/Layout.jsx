@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { Async, LABEL, LADDER, Note, Plot, useApi } from "../ui.jsx";
+import Explain from "./Explain.jsx";
 
 function Heat({ run, policy, level }) {
   const st = useApi(`/api/runs/${run.id}/layout?policy=${policy}`);
@@ -153,6 +154,10 @@ export default function Layout({ run }) {
       <div className="panel">
         <h2>Rack elevation: {LABEL[b]}</h2>
         <Elevation run={run} policy={b} />
+      </div>
+      <div className="panel" style={{ marginTop: 16 }}>
+        <h2>Why is this SKU here? ({LABEL.Full})</h2>
+        <Explain run={run} policy="Full" />
       </div>
     </>
   );

@@ -7,11 +7,17 @@ import Eda from "./tabs/Eda.jsx";
 import Constraints from "./tabs/Constraints.jsx";
 import Forecast from "./tabs/Forecast.jsx";
 import Method from "./tabs/Method.jsx";
+import Impact from "./tabs/Impact.jsx";
+import Tradeoff from "./tabs/Tradeoff.jsx";
+import Stress from "./tabs/Stress.jsx";
 
 const TABS = [
   ["overview", "Results", Overview],
+  ["impact", "Business impact", Impact],
   ["layout", "Layout", Layout],
   ["path", "Pick path", PickPath],
+  ["tradeoff", "Trade-offs", Tradeoff],
+  ["stress", "Demand surge", Stress],
   ["eda", "Data analysis", Eda],
   ["rules", "Constraints", Constraints],
   ["forecast", "Forecast & re-slotting", Forecast],
