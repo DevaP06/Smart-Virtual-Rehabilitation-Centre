@@ -1,0 +1,13 @@
+# Everything needed to run the optimizer, seed the database and run the tests locally or in CI.
+-r requirements.txt
+numpy
+pandas
+scipy
+networkx
+lightgbm
+ortools
+openpyxl
+python-dotenv
+uvicorn
+httpx
+pytest

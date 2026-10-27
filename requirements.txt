@@ -1,5 +1,4 @@
-numpy
-pandas
-streamlit
-plotly
-pytest
+# Deployed API (Vercel Python function). Keep this small: the engine runs offline, see requirements-engine.txt.
+fastapi>=0.115
+sqlalchemy>=2.0
+psycopg[binary]>=3.2

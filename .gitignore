@@ -20,3 +20,14 @@ PLAN.md
 # secrets
 .env
 .env.*
+
+!.env.example
+
+# node / build output
+web/node_modules/
+web/dist/
+
+# local databases and logs
+*.db
+*.log
+nohup.out

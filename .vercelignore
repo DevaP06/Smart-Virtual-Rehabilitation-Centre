@@ -1,0 +1,12 @@
+data
+out
+tests
+core
+scripts
+web/node_modules
+web/dist
+.github
+Dockerfile
+PLAN.md
+*.pdf
+*.md

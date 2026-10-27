@@ -1,0 +1,88 @@
+:root {
+  --bg: #0b1220;
+  --panel: #111a2e;
+  --panel-2: #16223b;
+  --border: #243453;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --accent: #38bdf8;
+  --good: #34d399;
+  --bad: #f87171;
+  --warn: #fbbf24;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font: 14px/1.5 Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+h1, h2, h3 { margin: 0 0 8px; font-weight: 650; letter-spacing: -0.01em; }
+h2 { font-size: 18px; }
+h3 { font-size: 14px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+p { margin: 0 0 10px; }
+code { background: var(--panel-2); padding: 1px 6px; border-radius: 4px; font-size: 12.5px; }
+
+.shell { max-width: 1240px; margin: 0 auto; padding: 0 16px 48px; }
+header.top {
+  display: flex; flex-wrap: wrap; gap: 12px; align-items: center; justify-content: space-between;
+  padding: 20px 0 12px;
+}
+.brand h1 { font-size: 20px; margin: 0; }
+.brand .sub { color: var(--muted); font-size: 13px; }
+.run-pick { display: flex; gap: 8px; align-items: center; color: var(--muted); }
+select {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px 10px; font: inherit;
+}
+nav.tabs {
+  display: flex; gap: 4px; overflow-x: auto; border-bottom: 1px solid var(--border); margin-bottom: 20px;
+}
+nav.tabs button {
+  background: none; border: none; color: var(--muted); padding: 10px 14px; cursor: pointer; font: inherit;
+  border-bottom: 2px solid transparent; white-space: nowrap;
+}
+nav.tabs button:hover { color: var(--text); }
+nav.tabs button.on { color: var(--accent); border-bottom-color: var(--accent); }
+
+.grid { display: grid; gap: 16px; }
+.cards { grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); margin-bottom: 20px; }
+.two { grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); }
+.panel { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 16px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; }
+.card-label { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.06em; }
+.card-value { font-size: 28px; font-weight: 700; margin: 4px 0 2px; }
+.card-sub { color: var(--muted); font-size: 12.5px; }
+.card.good .card-value { color: var(--good); }
+.card.bad .card-value { color: var(--bad); }
+
+.note { border-radius: 10px; padding: 10px 14px; margin: 12px 0; font-size: 13.5px; border: 1px solid var(--border); background: var(--panel-2); }
+.note.warn { border-color: #6b5a1f; background: #2a2410; }
+.state { padding: 40px; text-align: center; color: var(--muted); }
+.state.error { color: var(--bad); }
+
+.controls { display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-bottom: 12px; color: var(--muted); }
+.controls label { display: flex; gap: 6px; align-items: center; }
+
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 7px 10px; text-align: right; border-bottom: 1px solid var(--border); white-space: nowrap; }
+th { color: var(--muted); font-weight: 600; font-size: 12px; }
+th:first-child, td:first-child { text-align: left; }
+tr.hl td { background: rgba(56, 189, 248, 0.08); }
+td.zero { color: var(--good); }
+td.nonzero { color: var(--bad); font-weight: 600; }
+td.dim { color: var(--muted); }
+
+.arch { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 10px 0 18px; }
+.arch .box { background: var(--panel-2); border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+.arch .box b { display: block; color: var(--accent); margin-bottom: 2px; }
+.arch .box span { color: var(--muted); font-size: 12.5px; }
+.formula { background: var(--panel-2); border-radius: 10px; padding: 12px 14px; font-family: ui-monospace, Consolas, monospace; font-size: 13px; overflow-x: auto; }
+
+@media (max-width: 560px) {
+  .two { grid-template-columns: 1fr; }
+  .card-value { font-size: 24px; }
+}
