@@ -1,0 +1,18 @@
+# raw and generated data (re-create with: python run.py --orders data/raw/online_retail_II.csv --regen)
+data/raw/
+data/processed/
+out/
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+
+# source PDFs, including the methodology report
+*.pdf
+Warehouse_Slotting_Industry_Report.pdf
+
+# planning notes (kept local)
+PLAN.md
