@@ -196,5 +196,23 @@ _dist = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if os.path.isdir(_dist):
     from fastapi.staticfiles import StaticFiles  # noqa: E402
 
-    app.mount("/", StaticFiles(directory=_dist, html=True), name="web")
+    class Web(StaticFiles):
+        """index.html must never be served from a stale cache: its hashed JS/CSS names change on every deploy, and the ETag
+        (built from mtime and size) can stay identical across deploys, so a browser would keep a page pointing at deleted files."""
+
+        async def get_response(self, path, scope):
+            is_page = path in ("", ".", "index.html") or not path.rsplit("/", 1)[-1].count(".")
+            if is_page:   # drop conditional-request headers so the page is always sent in full
+                scope = dict(scope, headers=[(k, v) for k, v in scope["headers"] if k not in (b"if-none-match", b"if-modified-since")])
+            resp = await super().get_response(path, scope)
+            if is_page:
+                resp.headers["Cache-Control"] = "no-store"
+                for h in ("etag", "last-modified"):
+                    if h in resp.headers:
+                        del resp.headers[h]
+            elif path.startswith("assets/"):
+                resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"   # content-hashed names
+            return resp
+
+    app.mount("/", Web(directory=_dist, html=True), name="web")
 
