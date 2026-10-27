@@ -16,3 +16,7 @@ Warehouse_Slotting_Industry_Report.pdf
 
 # planning notes (kept local)
 PLAN.md
+
+# secrets
+.env
+.env.*
