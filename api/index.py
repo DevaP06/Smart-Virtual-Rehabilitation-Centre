@@ -18,14 +18,6 @@ app = FastAPI(title="Warehouse Slotting API", root_path="")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
 
 
-@app.middleware("http")
-async def ensure_api_prefix(request: Request, call_next):
-    """Vercel may hand the function the rewritten or the prefix-stripped path; routes live under /api."""
-    if not request.scope["path"].startswith("/api"):
-        request.scope["path"] = "/api" + request.scope["path"]
-    return await call_next(request)
-
-
 _engine = None
 _Session = None
 
@@ -134,11 +126,13 @@ def paths(run_id: int, db=Depends(get_db)):
     return _artifact(db, run_id, "paths")
 
 
-@app.get("/api/_debug/{rest:path}")
-def debug(rest: str, request: Request):
-    """Temporary: shows what path and headers the platform passed to the function."""
-    return {"path": request.url.path, "scope_path": request.scope["path"], "query": str(request.url.query),
-            "headers": {k: v for k, v in request.headers.items() if k.startswith(("x-vercel", "x-forwarded", "x-matched"))}}
+if os.environ.get("VERCEL"):
+    @app.get("/{rest:path}")
+    def debug_unmatched(rest: str, request: Request):
+        """Temporary: any path no route matched. Shows what path and headers the platform gave the function."""
+        return {"unmatched": True, "path": request.url.path, "scope_path": request.scope["path"],
+                "raw_path": (request.scope.get("raw_path") or b"").decode(), "root_path": request.scope.get("root_path"),
+                "headers": {k: v for k, v in request.headers.items() if k.startswith(("x-vercel", "x-forwarded", "x-matched", "x-now"))}}
 
 
 # Local / Docker: also serve the built React app. On Vercel the static build is served by the platform instead.
