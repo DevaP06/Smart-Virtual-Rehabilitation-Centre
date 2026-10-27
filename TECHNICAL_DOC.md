@@ -1,6 +1,6 @@
 # Technical & Algorithmic Documentation: Smart Warehouse Slotting & Optimization Engine (v2)
 
-v1 (tag `v1`) was a Streamlit prototype with a greedy optimizer. v2 adds a database, an API, a React dashboard, an ablation ladder with confidence intervals, CP-SAT and swap-search refinement, demand forecasting, re-slotting, and a second warehouse scenario. All numbers below come from one seeded run (`scripts/seed_db.py`); treat them as estimates.
+v1 (tag `v1`) was a Streamlit prototype with a greedy optimizer. v2 adds a database, an API, a React dashboard, an ablation ladder with confidence intervals, CP-SAT and swap-search refinement, demand forecasting, re-slotting, and a second warehouse scenario. All numbers below come from one seeded run (`scripts/seed_db.py`, the run stored in the deployed database); treat them as estimates. The local search is time-budgeted, so its row can differ slightly between runs.
 
 ## 1. Architecture
 
@@ -91,8 +91,8 @@ cost = (demand + floor) × (distance_to_depot + shelf_penalty)
 | B3 + golden | 169.7 | −44.2% [44.0, 44.5] | −27.7% | 412 s | 15.1 | 65% | 9.8 m | 2,146 | 0 |
 | B4 + affinity | 163.0 | −46.4% [45.8, 47.0] | −29.4% | 403 s | 15.1 | 58% | 3.4 m | 2,122 | 0 |
 | **Full** | **165.9** | **−45.5% [44.9, 46.0]** | −25.8% | **404 s** | **15.9** | 61% | 3.3 m | 2,679 | 0 |
-| Full + CP-SAT | 165.9 | −45.5% [44.9, 46.0] | −25.8% | 404 s | 15.9 | 61% | 3.4 m | 2,742 | 0 |
-| Full + CP-SAT + LS | 166.9 | −45.1% [44.6, 45.7] | −25.5% | 403 s | 15.9 | 63% | 5.2 m | 2,744 | 0 |
+| Full + CP-SAT | 165.9 | −45.5% [44.9, 46.0] | −25.8% | 404 s | 15.9 | 61% | 3.4 m | 2,728 | 0 |
+| Full + CP-SAT + LS | 166.8 | −45.2% [44.6, 45.7] | −25.6% | 403 s | 15.9 | 63% | 5.0 m | 2,730 | 0 |
 
 "S-shape vs B0" is the change in average distance per order under S-shape routing; the other columns use return routing.
 
@@ -118,7 +118,7 @@ Re-slotting with the LightGBM forecast made 74 swaps and walked **1,664 km inclu
 ## 7. What the numbers say, honestly
 
 1. **ABC zoning does most of the work.** B2 already removes 48% of distance. Each later term trades some distance for something else: the golden zone raises class-A picks at golden height from 40% to 65% and cuts route time; affinity cuts co-order pair distance from 7.2 m to 3.4 m and route time again; best-fit raises fill rate but **increases refills per day by about 26%** (smaller bins empty sooner). Full is not the shortest layout, it is the best compromise across the KPIs.
-2. **CP-SAT and local search did not help held-out distance.** CP-SAT returned FEASIBLE with a 28% gap after 20 s (not proven optimal) and its objective omits affinity between re-solved SKUs. The local search lowers training distance (about 0.7%) but the gain does not transfer to held-out orders, a sign of overfitting. We report these rows rather than hide them.
+2. **CP-SAT and local search did not help held-out distance.** CP-SAT returned FEASIBLE with a 28% gap after 20 s (not proven optimal) and its objective omits affinity between re-solved SKUs. The local search lowers training distance (about 0.6%) but the gain does not transfer to held-out orders, a sign of overfitting. We report these rows rather than hide them.
 3. **The naive layout is not a fair winner.** It breaks 259 rules and, in this dataset, sorting by stock code may accidentally group colour variants that are ordered together. We did not isolate the cause.
 4. **S-shape routing shrinks the gain** (25.8% vs 45.5%) because every visited aisle is walked end to end, so item depth matters less than the number of aisles touched. The ranking of layouts is unchanged.
 5. **Chaotic stow (B1) behaves like B0** here: orders are multi-line (19.8 lines on average, 9.7% single-line), which is where random stow is expected to lose.
