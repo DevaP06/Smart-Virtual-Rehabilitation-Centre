@@ -31,3 +31,8 @@ web/dist/
 *.db
 *.log
 nohup.out
+
+# large third-party datasets (download separately, see README)
+Instacart/
+Olist/
+*.zip
