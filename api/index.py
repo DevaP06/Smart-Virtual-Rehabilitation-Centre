@@ -8,7 +8,7 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request  # noqa: E402
+from fastapi import Depends, FastAPI, HTTPException, Query  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from sqlalchemy import func, select  # noqa: E402
 
@@ -16,7 +16,6 @@ from slotdb.models import Artifact, Ci, Kpi, Run, RunLog, Slot, Violation, make_
 
 app = FastAPI(title="Warehouse Slotting API", root_path="")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
-
 
 _engine = None
 _Session = None
@@ -126,18 +125,9 @@ def paths(run_id: int, db=Depends(get_db)):
     return _artifact(db, run_id, "paths")
 
 
-if os.environ.get("VERCEL"):
-    @app.get("/{rest:path}")
-    def debug_unmatched(rest: str, request: Request):
-        """Temporary: any path no route matched. Shows what path and headers the platform gave the function."""
-        return {"unmatched": True, "path": request.url.path, "scope_path": request.scope["path"],
-                "raw_path": (request.scope.get("raw_path") or b"").decode(), "root_path": request.scope.get("root_path"),
-                "headers": {k: v for k, v in request.headers.items() if k.startswith(("x-vercel", "x-forwarded", "x-matched", "x-now"))}}
-
-
-# Local / Docker: also serve the built React app. On Vercel the static build is served by the platform instead.
+# Serve the built React app from the same app (Vercel runs the whole project as this one FastAPI function).
 _dist = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "dist")
-if os.path.isdir(_dist) and not os.environ.get("VERCEL"):
+if os.path.isdir(_dist):
     from fastapi.staticfiles import StaticFiles  # noqa: E402
 
     app.mount("/", StaticFiles(directory=_dist, html=True), name="web")
