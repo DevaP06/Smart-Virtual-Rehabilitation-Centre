@@ -23,7 +23,7 @@ layout grid 70/30 split   forecast,       → swap search →    every rule     
 
 The heavy computation runs offline (`python scripts/seed_db.py`) and is stored in Postgres. The deployed API is read-only, so the dashboard shows exactly the stored results and there is no second copy of the numbers. This also fits Vercel's serverless limits (short functions, small bundle).
 
-Cross-cutting: all tunables in `core/config.py`, fixed seeds, run timings stored in `run_log`, tests in `tests/` (19), CI in `.github/workflows/ci.yml`, `Dockerfile`.
+Cross-cutting: all tunables in `core/config.py`, fixed seeds, run timings stored in `run_log`, tests in `tests/` (31), CI in `.github/workflows/ci.yml`, `Dockerfile`.
 
 ## 2. Data
 
@@ -146,6 +146,12 @@ Re-slotting with the LightGBM forecast made 74 swaps and walked **1,664 km inclu
 - **Proprietary industry algorithms are not public.** The design follows public practice and the published literature; nothing here claims to replicate Amazon, Flipkart, Blinkit or Zepto internals.
 - **Single seed per dataset;** the CIs capture order-day variation, not alternative warehouse designs.
 
+## 9b. Using it on a company's own data
+
+`core/ingest.py` validates three CSVs (orders, SKU master, locations) and fails closed: unknown hazard classes, missing columns, duplicate IDs, SKUs that fit no bin, hazardous SKUs without a hazard cage, orders for unknown SKUs (over 1% of lines), and less than 28 days of history are errors with CSV row numbers, and nothing is stored. `scripts/run_company.py` runs the same experiment on the validated tables. `save_run` refuses any run in which a proposed layout breaks a rule or a SKU is unplaced. The API exports the proposed assignment and a move list (current to proposed layout) as CSV. Formats: `docs/DATA_FORMAT.md`.
+
+Still missing for production use: login and per-company data separation, an on-demand compute service (the optimizer runs offline), editable rule configuration (hazard classes beyond flammable/oxidizer, separation matrix), real floor-plan import with true walking distances, and calibration of the time model against the operation.
+
 ## 10. Requirement map
 
 | Requirement | Evidence |
@@ -163,6 +169,6 @@ Re-slotting with the LightGBM forecast made 74 swaps and walked **1,664 km inclu
 ## 11. Reproduce
 
     pip install -r requirements-engine.txt
-    pytest -q tests                                              # 19 tests, ~15 s
+    pytest -q tests                                              # 31 tests, ~30 s
     python scripts/seed_db.py --orders data/raw/online_retail_II.csv   # needs DATABASE_URL (or SQLite default)
     uvicorn api.index:app --port 8000 & (cd web && npm install && npm run dev)

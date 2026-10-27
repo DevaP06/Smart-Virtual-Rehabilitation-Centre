@@ -136,6 +136,15 @@ export default function Layout({ run }) {
           </select>
         </label>
       </div>
+      <div className="controls">
+        <a className="btn" href={`/api/runs/${run.id}/moves?from=${a}&to=${b}`} download>
+          Download move list ({LABEL[a]} → {LABEL[b]})
+        </a>
+        <a className="btn" href={`/api/runs/${run.id}/assignment?policy=${b}`} download>
+          Download assignment ({LABEL[b]})
+        </a>
+        <span>CSV, fastest-moving SKUs first. Rules are re-checked before a run can be stored.</span>
+      </div>
       <div className="grid two">
         <div className="panel"><Heat run={run} policy={a} level={level} /></div>
         <div className="panel"><Heat run={run} policy={b} level={level} /></div>

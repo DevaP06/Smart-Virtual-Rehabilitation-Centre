@@ -27,7 +27,8 @@ export default function App() {
   useEffect(() => {
     window.location.hash = tab;
   }, [tab]);
-  const sorted = runs.data ? [...runs.data].sort((a, b) => ORDER.indexOf(a.profile) - ORDER.indexOf(b.profile)) : [];
+  const rank = (r) => (ORDER.includes(r.profile) ? ORDER.indexOf(r.profile) : 99);   // presets first, then company runs
+  const sorted = runs.data ? [...runs.data].sort((a, b) => rank(a) - rank(b) || b.id - a.id) : [];
   const id = runId ?? sorted[0]?.id;
   const detail = useApi(id ? `/api/runs/${id}` : null);
   const Tab = (TABS.find((t) => t[0] === tab) || TABS[0])[2];
@@ -45,7 +46,7 @@ export default function App() {
             <select value={id ?? ""} onChange={(e) => setRunId(Number(e.target.value))}>
               {sorted.map((r) => (
                 <option key={r.id} value={r.id}>
-                  {PROFILE[r.profile] || r.profile} · {r.dataset}
+                  {PROFILE[r.profile] ? `${PROFILE[r.profile]} · ${r.dataset}` : r.dataset}
                 </option>
               ))}
             </select>

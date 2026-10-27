@@ -1,0 +1,4 @@
+Location_ID,Zone,Aisle_Number,Rack_ID,Bay,Shelf_Level,X,Y,Z,Max_Weight_Capacity,Volumetric_Capacity,Distance_to_Dispatch_Depot,Bin_Width,Bin_Height,Bin_Depth,Side
+R0-0-00-L1-B0,STD,0,R0-0-00,0,1,-0.75,3.0,20,100,240,3.0,80,50,60,0
+R0-0-00-L3-B0,STD,0,R0-0-00,0,3,-0.75,3.0,120,50,96,3.0,60,40,40,0
+R9-0-00-L2-B0,HAZ,9,R9-0-00,0,2,35.25,3.0,70,70,96,39.0,60,40,40,0

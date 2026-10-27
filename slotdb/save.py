@@ -17,8 +17,30 @@ def clean(o):
     return o
 
 
+class PublishRefused(Exception):
+    """A run that breaks a rule, or could not place every SKU, must never be stored as a usable layout."""
+
+
+def check_publishable(R):
+    """Fail closed. Every layout except the deliberately rule-ignoring 'naive' baseline must have zero violations."""
+    bad = {}
+    for n, e in R["results"].items():
+        v = e["violations"]
+        # a random baseline that cannot place every SKU in a tight warehouse is not an unsafe layout; any other breach is
+        total = v["total"] - (v.get("unplaced_skus", 0) if n in ("B0_random", "B1_chaotic") else 0)
+        if n != "naive" and total:
+            bad[n] = total
+    if bad:
+        raise PublishRefused(f"layouts with rule violations, not published: {bad}")
+    if any(R["unplaced"].values()):
+        raise PublishRefused(f"SKUs could not be placed: {R['unplaced']}")
+    if R.get("reslot") and R["reslot"]["violations"]:
+        raise PublishRefused("re-slotting produced rule violations, not published")
+
+
 def save_run(Session, R, dataset, replace_profile=True):
     R = clean(R)
+    check_publishable(R)
     with Session.begin() as s:
         if replace_profile:   # keep one current run per profile so the UI always shows the latest
             for rid in [r.id for r in s.query(Run).filter(Run.profile == R["profile"])]:

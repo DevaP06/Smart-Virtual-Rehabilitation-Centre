@@ -14,7 +14,9 @@ Maps SKUs to warehouse bins under hard physical and safety rules, using demand v
 | `scripts/seed_db.py` | runs the experiments and stores them in the database |
 | `api/index.py` | read-only FastAPI service (Vercel Python function) |
 | `web/` | React + Plotly dashboard (Vite) |
-| `tests/` | 19 tests: planted-violation validator tests, algorithm checks, DB + API end to end |
+| `core/ingest.py` | validation of a company's own orders, SKU master and locations (fail closed, row-level errors) |
+| `templates/`, `docs/DATA_FORMAT.md` | CSV templates and column definitions |
+| `tests/` | 31 tests: planted-violation validator tests, algorithm checks, data validation, fail-closed publishing, DB + API end to end |
 
 ## Run locally
 
@@ -28,6 +30,15 @@ Maps SKUs to warehouse bins under hard physical and safety rules, using demand v
 
     uvicorn api.index:app --port 8000     # API (also serves web/dist when built)
     cd web && npm install && npm run dev  # dashboard on http://localhost:5173 (proxies /api to :8000)
+
+## Run it on your own warehouse data
+
+Format and units: [docs/DATA_FORMAT.md](docs/DATA_FORMAT.md). Templates: `templates/`.
+
+    python scripts/run_company.py --validate-only --name "My DC" --orders orders.csv --skus sku_master.csv --locations locations.csv
+    python scripts/run_company.py --name "My DC" --orders orders.csv --skus sku_master.csv --locations locations.csv
+
+Bad data is rejected with CSV row numbers and **nothing is stored**. A run is also refused if any proposed layout breaks a rule or leaves a SKU unplaced. The result appears in the dashboard's scenario list; the Layout tab downloads the **move list** (current -> proposed) and the **assignment** as CSV.
 
 ## Deploy (Neon + Vercel)
 
@@ -44,7 +55,7 @@ The deployed API only reads stored results, so no optimizer runs on Vercel. To r
 
 ## API
 
-`GET /api/health`, `/api/runs`, `/api/runs/{id}`, `/api/runs/{id}/kpis`, `/violations`, `/layout?policy=`, `/eda`, `/forecast`, `/reslot`, `/sensitivity`, `/paths`.
+`GET /api/health`, `/api/runs`, `/api/runs/{id}`, `/api/runs/{id}/kpis`, `/violations`, `/layout?policy=`, `/assignment?policy=` (CSV), `/moves?from=&to=` (CSV), `/eda`, `/forecast`, `/reslot`, `/sensitivity`, `/paths`.
 
 ## Data honesty
 

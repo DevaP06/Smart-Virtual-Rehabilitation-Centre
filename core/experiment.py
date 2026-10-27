@@ -22,7 +22,7 @@ LADDER = ("naive", "B0_random", "B1_chaotic", "B2_abc", "B3_golden", "B4_affinit
 
 
 def profile_cfg(profile, **over):
-    return {**CFG, "train_frac": 0.7, **PROFILES[profile], **over}
+    return {**CFG, "train_frac": 0.7, **PROFILES.get(profile, {}), **over}
 
 
 def _ladder_cfg(c, name):
@@ -37,7 +37,8 @@ def _ladder_cfg(c, name):
 
 
 def run_experiment(profile="fulfilment_centre", orders_path=None, regen=False, n_seeds=5, cp_time=20, ls_seconds=30,
-                   log=print, **over):
+                   log=print, tables=None, **over):
+    """tables=(orders, skus, locations): a company's own validated data (see core/ingest.py) instead of a preset."""
     c = profile_cfg(profile, **over)
     t_all, timing = time.time(), {}
 
@@ -45,7 +46,10 @@ def run_experiment(profile="fulfilment_centre", orders_path=None, regen=False, n
         timing[name] = round(time.time() - t0, 2); log(f"  {name}: {timing[name]}s")
 
     t0 = time.time()
-    orders, skus, locs = load_inputs(c, orders_path, out_dir=f"data/processed/{profile}", regen=regen)
+    if tables is not None:
+        orders, skus, locs = tables
+    else:
+        orders, skus, locs = load_inputs(c, orders_path, out_dir=f"data/processed/{profile}", regen=regen)
     cut = orders.Timestamp.sort_values().iloc[int(len(orders) * c["train_frac"])]
     train, test = orders[orders.Timestamp < cut], orders[orders.Timestamp >= cut]
     vel = velocity(train)
@@ -151,7 +155,7 @@ def run_experiment(profile="fulfilment_centre", orders_path=None, regen=False, n
         baskets=dict(single_line_share=float((lines == 1).mean() * 100), mean_lines=float(lines.mean()),
                      hist=np.bincount(lines.clip(upper=30))[1:].tolist()),
         volume=dict(hist=hist.tolist(), edges=[float(e) for e in edges],
-                    bin_classes={k: d[0] * d[1] * d[2] / 1000 for k, d in c["bin_dims"].items()}),
+                    bin_classes={f"{v:g} L": float(v) for v in sorted(locs.Volumetric_Capacity.unique())[:6]}),
         clusters=_communities(pairs, vel, n_ord),
         hazard_share=float((skus.Hazard_Class != "none").mean() * 100),
     )
@@ -196,7 +200,7 @@ def run_experiment(profile="fulfilment_centre", orders_path=None, regen=False, n
     return dict(profile=profile, config=_jsonable(c), n_skus=len(skus), n_bins=len(locs), n_orders=int(orders.Order_ID.nunique()),
                 n_train=int(train.Order_ID.nunique()), n_test=int(test.Order_ID.nunique()), best=best, headline="Full", results=results,
                 sensitivity=sens, eda=eda, forecast=fc, reslot=rs_out, extra=extra, unplaced={k: len(v) for k, v in unplaced.items()},
-                slots=slots, paths=paths, timing=timing, grid=dict(aisles=c["aisles"], bays=c["bays"]))
+                slots=slots, paths=paths, timing=timing, grid=dict(aisles=int(locs.Aisle_Number.max()) + 1, bays=int(locs.Bay.max()) + 1))
 
 
 def _w(w, c):

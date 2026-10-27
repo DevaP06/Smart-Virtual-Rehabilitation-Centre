@@ -1,0 +1,4 @@
+SKU_ID,Width,Height,Depth,Weight,Category,Hazard_Class,Handling_Type,Cases
+A100,30,20,15,2.5,kitchen,none,standard,2
+B220,12,12,12,0.8,candles,flammable,standard,1
+C310,40,30,25,18.0,tools,none,heavy,1

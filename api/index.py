@@ -8,7 +8,11 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import csv  # noqa: E402
+import io  # noqa: E402
+
 from fastapi import Depends, FastAPI, HTTPException, Query  # noqa: E402
+from fastapi.responses import Response  # noqa: E402
 from fastapi.middleware.cors import CORSMiddleware  # noqa: E402
 from sqlalchemy import func, select  # noqa: E402
 
@@ -90,6 +94,49 @@ def layout(run_id: int, policy: str = Query("Full"), db=Depends(get_db)):
         raise HTTPException(404, f"no layout '{policy}' in run {run_id}")
     return [dict(sku=s.sku_id, loc=s.location_id, aisle=s.aisle, side=s.side, bay=s.bay, level=s.level, bin=s.bin,
                  x=s.x, y=s.y, velocity=s.velocity, abc=s.abc, category=s.category, hazard=s.hazard) for s in rows]
+
+
+def _csv(rows, name):
+    buf = io.StringIO()
+    if rows:
+        w = csv.DictWriter(buf, fieldnames=list(rows[0]))
+        w.writeheader()
+        w.writerows(rows)
+    return Response(buf.getvalue(), media_type="text/csv", headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+def _slots(db, run_id, policy):
+    rows = db.scalars(select(Slot).where(Slot.run_id == run_id, Slot.policy == policy)).all()
+    if not rows:
+        raise HTTPException(404, f"no layout '{policy}' in run {run_id}")
+    return {s.sku_id: s for s in rows}
+
+
+@app.get("/api/runs/{run_id}/assignment")
+def assignment(run_id: int, policy: str = "Full", format: str = "csv", db=Depends(get_db)):
+    """The proposed SKU -> bin assignment (what a warehouse system would import)."""
+    _run(db, run_id)
+    rows = [dict(sku_id=s.sku_id, location_id=s.location_id, aisle=s.aisle, side=s.side, bay=s.bay, level=s.level, bin=s.bin,
+                 abc_class=s.abc, category=s.category, hazard_class=s.hazard) for s in _slots(db, run_id, policy).values()]
+    return _csv(rows, f"assignment_run{run_id}_{policy}.csv") if format == "csv" else rows
+
+
+@app.get("/api/runs/{run_id}/moves")
+def moves(run_id: int, to: str = "Full", format: str = "csv", frm: str = Query("B0_random", alias="from"), db=Depends(get_db)):
+    """Move list from one layout (default: the random baseline) to another: only SKUs whose bin changes, fastest first.
+    Use your own current layout as the `from` side by running the engine on your data with that layout stored."""
+    _run(db, run_id)
+    a, b = _slots(db, run_id, frm), _slots(db, run_id, to)
+    out = []
+    for sku, new in sorted(b.items(), key=lambda kv: -kv[1].velocity):
+        old = a.get(sku)
+        if old is None or old.location_id == new.location_id:
+            continue
+        out.append(dict(priority=len(out) + 1, sku_id=sku, category=new.category, abc_class=new.abc, pick_lines=new.velocity,
+                        from_location=old.location_id, to_location=new.location_id, from_level=old.level, to_level=new.level,
+                        depot_distance_before_m=round(old.x + old.y, 1), depot_distance_after_m=round(new.x + new.y, 1),
+                        hazard_class=new.hazard))
+    return _csv(out, f"moves_run{run_id}_{frm}_to_{to}.csv") if format == "csv" else dict(moves=out, n_moves=len(out), n_skus=len(b))
 
 
 def _artifact(db, run_id, kind):
