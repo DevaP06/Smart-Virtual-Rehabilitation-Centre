@@ -10,6 +10,7 @@ import Method from "./tabs/Method.jsx";
 import Impact from "./tabs/Impact.jsx";
 import Tradeoff from "./tabs/Tradeoff.jsx";
 import Stress from "./tabs/Stress.jsx";
+import Generalize from "./tabs/Generalize.jsx";
 
 const TABS = [
   ["overview", "Results", Overview],
@@ -18,6 +19,7 @@ const TABS = [
   ["path", "Pick path", PickPath],
   ["tradeoff", "Trade-offs", Tradeoff],
   ["stress", "Demand surge", Stress],
+  ["general", "Generalization", Generalize],
   ["eda", "Data analysis", Eda],
   ["rules", "Constraints", Constraints],
   ["forecast", "Forecast & re-slotting", Forecast],
@@ -41,8 +43,8 @@ class Boundary extends Component {
   }
 }
 
-const ORDER = ["fulfilment_centre", "dark_store"];
-const PROFILE = { fulfilment_centre: "Fulfilment centre", dark_store: "Dark store" };
+const ORDER = ["fulfilment_centre", "grocery", "dark_store"];
+const PROFILE = { fulfilment_centre: "Fulfilment centre", grocery: "Grocery dark store", dark_store: "Dark store" };
 
 export default function App() {
   const runs = useApi("/api/runs");

@@ -34,6 +34,8 @@ def check_publishable(R):
         raise PublishRefused(f"layouts with rule violations, not published: {bad}")
     if any(R["unplaced"].values()):
         raise PublishRefused(f"SKUs could not be placed: {R['unplaced']}")
+    if R.get("cohort") and R["cohort"]["violations"]:
+        raise PublishRefused("a cross-cohort layout broke a rule, not published")
     if R.get("reslot") and R["reslot"]["violations"]:
         raise PublishRefused("re-slotting produced rule violations, not published")
 
@@ -65,7 +67,7 @@ def save_run(Session, R, dataset, replace_profile=True):
                 "category", "hazard")
         s.bulk_insert_mappings(Slot, [dict(zip(keys, row), run_id=run.id) for row in R["slots"]])
         s.bulk_insert_mappings(Explanation, [dict(run_id=run.id, sku_id=k, payload=v) for k, v in R["explain"].items()])
-        for kind in ("eda", "forecast", "reslot", "sensitivity", "paths", "tradeoff", "surge"):
+        for kind in ("eda", "forecast", "reslot", "sensitivity", "paths", "tradeoff", "surge", "cohort"):
             s.add(Artifact(run_id=run.id, kind=kind, payload=R[kind]))
         for step, sec in R["timing"].items():
             s.add(RunLog(run_id=run.id, step=step, seconds=sec))

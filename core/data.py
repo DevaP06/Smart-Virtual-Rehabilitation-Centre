@@ -101,7 +101,8 @@ def load_retail(path, c):
     df = df[df.SKU_ID.isin(keep)].drop_duplicates(["Order_ID", "SKU_ID"])
     df["Timestamp"] = pd.to_datetime(df["Timestamp"])
     desc = df.drop_duplicates("SKU_ID").set_index("SKU_ID")["Description"].to_dict()
-    return df[["Order_ID", "SKU_ID", "Quantity", "Timestamp"]].sort_values("Timestamp"), desc
+    extra = [c_ for c_ in ("Country",) if c_ in df.columns]            # kept for cohort analysis (UK vs other countries)
+    return df[["Order_ID", "SKU_ID", "Quantity", "Timestamp"] + extra].sort_values("Timestamp"), desc
 
 
 def load_inputs(c, orders_path=None, out_dir="data/processed", regen=False):

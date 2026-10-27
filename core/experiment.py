@@ -7,7 +7,7 @@ import pandas as pd
 from .config import CFG
 from .data import load_inputs
 from .engine import (State, World, abc_classes, assign_full, cooc, naive_assign, pair_stats, partners, velocity)
-from .extras import explain_layout, surge_test, tradeoff_grid
+from .extras import cross_cohort, explain_layout, surge_test, tradeoff_grid
 from .forecast import forecast_report, reslot_sim, weekly_matrix
 from .refine import cpsat_refine, local_search
 from .simulate import POLICIES, bootstrap_ci, kpis, per_day, route_path, route_stats
@@ -15,6 +15,8 @@ from .validate import validate
 
 PROFILES = {
     "fulfilment_centre": {},
+    "grocery": dict(aisles=6, bays=14, haz_aisles=(5,), n_sku=1200, n_orders=30000, seed=21,
+                    bin_cap=[80, 60, 40, 30, 20], beam_cap=[120, 80, 60, 40, 30], frame_cap=240),
     "dark_store": dict(aisles=4, bays=10, haz_aisles=(3,), n_sku=600, n_orders=15000, seed=11,
                        bin_cap=[80, 60, 40, 30, 20], beam_cap=[120, 80, 60, 40, 30], frame_cap=240),
 }
@@ -183,6 +185,9 @@ def run_experiment(profile="fulfilment_centre", orders_path=None, regen=False, n
     surge = surge_test(w, layouts["Full"], skus, orders, cut, c)
     explain = explain_layout(w, _full_state(w, layouts["Full"]), vel, part, c)
     step("tradeoff+surge+explain", t0)
+    t0 = time.time()
+    cohort = cross_cohort(skus, locs, w, c, orders, cut)
+    step("cross-cohort", t0)
 
     # ---- artefacts for the UI ----
     cls = abc.to_dict()
@@ -208,7 +213,7 @@ def run_experiment(profile="fulfilment_centre", orders_path=None, regen=False, n
     return dict(profile=profile, config=_jsonable(c), n_skus=len(skus), n_bins=len(locs), n_orders=int(orders.Order_ID.nunique()),
                 n_train=int(train.Order_ID.nunique()), n_test=int(test.Order_ID.nunique()), best=best, headline="Full", results=results,
                 sensitivity=sens, eda=eda, forecast=fc, reslot=rs_out, extra=extra, unplaced={k: len(v) for k, v in unplaced.items()},
-                tradeoff=tradeoff, surge=surge, explain=explain,
+                tradeoff=tradeoff, surge=surge, explain=explain, cohort=cohort,
                 test_days=int(test.Timestamp.dt.date.nunique()), slots=slots, paths=paths, timing=timing, grid=dict(aisles=int(locs.Aisle_Number.max()) + 1, bays=int(locs.Bay.max()) + 1))
 
 

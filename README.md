@@ -7,7 +7,7 @@ Maps SKUs to warehouse bins under hard physical and safety rules, using demand v
 
 ## Dashboard tabs
 
-Results (ablation ladder with CIs) · Business impact (editable ROI) · Layout (heatmaps, rack elevation, per-SKU explanation, CSV downloads) · Pick path (animated) · Trade-offs (weight explorer with Pareto front) · Demand surge (stress test) · Data analysis · Constraints · Forecast & re-slotting · Method.
+Results (ablation ladder with CIs) · Business impact (editable ROI) · Layout (heatmaps, rack elevation, per-SKU explanation, CSV downloads) · Pick path (animated) · Trade-offs (weight explorer with Pareto front) · Demand surge (stress test) · Generalization (cross-cohort matrix, cross-dataset comparison) · Data analysis · Constraints · Forecast & re-slotting · Method.
 
 ## Layout
 
@@ -20,7 +20,7 @@ Results (ablation ladder with CIs) · Business impact (editable ROI) · Layout (
 | `web/` | React + Plotly dashboard (Vite) |
 | `core/ingest.py` | validation of a company's own orders, SKU master and locations (fail closed, row-level errors) |
 | `templates/`, `docs/DATA_FORMAT.md` | CSV templates and column definitions |
-| `tests/` | 34 tests: planted-violation validator tests, algorithm checks, data validation, fail-closed publishing, DB + API end to end |
+| `tests/` | 37 tests: planted-violation validator tests, algorithm checks, data validation, fail-closed publishing, DB + API end to end |
 
 ## Run locally
 
@@ -31,6 +31,9 @@ Results (ablation ladder with CIs) · Business impact (editable ROI) · Layout (
     # real orders: download UCI "Online Retail II", convert both sheets to data/raw/online_retail_II.csv
     python scripts/seed_db.py --orders data/raw/online_retail_II.csv
     python scripts/seed_db.py             # or: synthetic orders for both scenarios (about 3 minutes)
+
+    # grocery scenario on real Instacart baskets: download the Instacart Market Basket CSVs from Kaggle into ./Instacart (git-ignored)
+    python scripts/seed_db.py --instacart Instacart
 
     uvicorn api.index:app --port 8000     # API (also serves web/dist when built)
     cd web && npm install && npm run dev  # dashboard on http://localhost:5173 (proxies /api to :8000)
@@ -59,7 +62,7 @@ The deployed API only reads stored results, so no optimizer runs on Vercel. To r
 
 ## API
 
-`GET /api/health`, `/api/runs`, `/api/runs/{id}`, `/api/runs/{id}/kpis`, `/violations`, `/tradeoff`, `/surge`, `/explain/{sku}`, `/layout?policy=`, `/assignment?policy=` (CSV), `/moves?from=&to=` (CSV), `/eda`, `/forecast`, `/reslot`, `/sensitivity`, `/paths`.
+`GET /api/health`, `/api/runs`, `/api/runs/{id}`, `/api/runs/{id}/kpis`, `/violations`, `/tradeoff`, `/surge`, `/cohort`, `/explain/{sku}`, `/api/compare`, `/layout?policy=`, `/assignment?policy=` (CSV), `/moves?from=&to=` (CSV), `/eda`, `/forecast`, `/reslot`, `/sensitivity`, `/paths`.
 
 ## Data honesty
 

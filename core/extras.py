@@ -90,3 +90,54 @@ def explain_layout(w, st, vel, part, c, top_alt=3):
                       partners=[dict(sku=p, orders=int(n), walk_m=float(walk(j, k))) for p, n, k in pj],
                       n_feasible_bins=int(len(cand)))
     return out
+
+
+def cohort_defs(orders, cut, min_orders=300):
+    """Order cohorts for generalisation tests: name -> set of Order_IDs. Cohorts too small to train or test on are dropped."""
+    per = orders.groupby("Order_ID").agg(ts=("Timestamp", "min"), n=("SKU_ID", "size"))
+    for col in ("order_number", "Country"):
+        if col in orders.columns:
+            per[col] = orders.groupby("Order_ID")[col].first()
+    defs = {"small baskets (1-3 lines)": per.n <= 3, "large baskets (10+ lines)": per.n >= 10,
+            "weekday orders": per.ts.dt.dayofweek < 5, "weekend orders": per.ts.dt.dayofweek >= 5}
+    if "order_number" in per:
+        defs["new customers (orders 1-5)"] = per.order_number <= 5
+        defs["loyal customers (order 16+)"] = per.order_number > 15
+    if "Country" in per:
+        defs["United Kingdom"] = per.Country == "United Kingdom"
+        defs["other countries"] = per.Country != "United Kingdom"
+    out = {}
+    for name, m in defs.items():
+        ids = set(per.index[m])
+        tr = (per.index.isin(ids) & (per.ts < cut)).sum()
+        te = (per.index.isin(ids) & (per.ts >= cut)).sum()
+        if tr >= min_orders and te >= min_orders:
+            out[name] = ids
+    return out
+
+
+def cross_cohort(skus, locs, w, c, orders, cut, n_seeds=3):
+    """Train the layout on one cohort's early orders, score it on another cohort's later orders, against a random layout on
+    the same test orders. The diagonal is 'same cohort, later period'; off-diagonal cells are a shift in who is ordering."""
+    from .engine import cooc, partners, velocity
+    defs = cohort_defs(orders, cut)
+    if len(defs) < 2:
+        return None
+    names = list(defs)
+    train_all, test_all = orders[orders.Timestamp < cut], orders[orders.Timestamp >= cut]
+    rand = [assign_full(skus, locs, velocity(train_all), {}, c, "random", seed=s, world=w)[0].to_frame() for s in range(n_seeds)]
+    from .simulate import route_stats
+    tests = {y: test_all[test_all.Order_ID.isin(defs[y])] for y in names}
+    base = {y: float(np.mean([route_stats(tests[y], f, locs, c).dist.mean() for f in rand])) for y in names}
+    matrix, viol = {}, 0
+    for x in names + ["all orders"]:
+        tr = train_all if x == "all orders" else train_all[train_all.Order_ID.isin(defs[x])]
+        vel = velocity(tr)
+        st, un = assign_full(skus, locs, vel, partners(cooc(tr, c["max_basket"]), c["topk"]), c, "opt", world=w)
+        frame = st.to_frame()
+        viol += validate(frame, skus, locs, c)["total"] + len(un)
+        matrix[x] = {y: dict(dist=float(d), base=base[y], reduction_pct=float(100 * (1 - d / base[y])), n_test=int(tests[y].Order_ID.nunique()))
+                     for y in names for d in [route_stats(tests[y], frame, locs, c).dist.mean()]}
+    return dict(cohorts=names, train_rows=names + ["all orders"], matrix=matrix, violations=int(viol),
+                sizes={n: dict(train=int(train_all.Order_ID.isin(defs[n]).sum() and train_all[train_all.Order_ID.isin(defs[n])].Order_ID.nunique()),
+                               test=int(tests[n].Order_ID.nunique())) for n in names})

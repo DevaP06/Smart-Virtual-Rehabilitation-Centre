@@ -23,7 +23,7 @@ layout grid 70/30 split   forecast,       → swap search →    every rule     
 
 The heavy computation runs offline (`python scripts/seed_db.py`) and is stored in Postgres. The deployed API is read-only, so the dashboard shows exactly the stored results and there is no second copy of the numbers. This also fits Vercel's serverless limits (short functions, small bundle).
 
-Cross-cutting: all tunables in `core/config.py`, fixed seeds, run timings stored in `run_log`, tests in `tests/` (34), CI in `.github/workflows/ci.yml`, `Dockerfile`.
+Cross-cutting: all tunables in `core/config.py`, fixed seeds, run timings stored in `run_log`, tests in `tests/` (37), CI in `.github/workflows/ci.yml`, `Dockerfile`.
 
 ## 2. Data
 
@@ -31,6 +31,7 @@ Cross-cutting: all tunables in `core/config.py`, fixed seeds, run timings stored
 |---|---|---|
 | Orders | UCI Online Retail II (1.07M lines). Removed returns (`C` invoices), non-product codes, quantity ≤ 0; kept the 1,500 most frequently picked SKUs → 39,132 orders | Real transactions. Because only the 1,500 busiest SKUs are kept, demand is flatter than a full catalogue: the top 20% of SKUs carry 47% of pick lines. |
 | SKU master | **Synthetic**, seeded: category from description keywords, then dimensions, weight, hazard class and handling type from per-category ranges | No open dataset has Hazard_Class or Handling_Type. Hazard classes are illustrative, not a regulatory mapping. |
+| Orders (grocery) | **Instacart Market Basket** (Kaggle): 1,332 whole customers sampled, 28,067 orders, the 1,200 most-picked products. Real: baskets, product names, aisles, departments and each customer's reorder gaps. Synthesised: calendar timestamps (a random start day in the first 90, then the real gaps) and all physical data (from department/aisle). Only 4 of the 1,200 SKUs are hazardous (oxidizers), so hazard rules are barely exercised in this scenario | 6 aisles × 14 bays, 1,680 bins, aisle 5 is the hazard cage |
 | Layout | **Generated.** Fulfilment centre: 10 aisles × 2 sides × 20 bays × 5 levels × 2 bins = 4,000 bins, aisle 9 is a hazard cage. Dark store: 4 aisles × 10 bays = 800 bins, 600 SKUs, 15,000 synthetic orders | Presets in `core/experiment.py` |
 
 Evaluation uses a strict time split: layouts are learned on the first 70% of the period and scored on the later 30% (10,823 held-out orders for the fulfilment centre).
@@ -132,6 +133,16 @@ Re-slotting with the LightGBM forecast made 74 swaps and walked **1,664 km inclu
 - **Per-SKU explanation.** For the Full layout, each SKU's cost is split into distance, shelf height, wasted space and distance to bought-together items, against the three cheapest alternative bins and its partner SKUs. Alternatives are bins still free in the final layout that pass the static rules; bin-load limits are not re-checked for them.
 - **Animated pick path.** The same held-out order walked on three layouts, under return or S-shape routing.
 
+## 7c. Generalization: cohorts and datasets
+
+- **Cross-cohort.** The layout is trained on one group of orders from the early 70% and scored on another group's orders from the later 30%, against a random layout on the same test orders. Groups: small baskets (1-3 lines), large baskets (10+), weekday, weekend, and where available new/loyal customers (Instacart) or United Kingdom vs other countries (Online Retail II). Groups too small to train or test on (under 300 orders) are dropped. Every layout in the grid is rule-checked.
+  - *Grocery (Instacart):* a layout trained on small baskets saves 38.7% on small baskets but only 21.0% on large baskets; trained on large baskets it saves 37.5% on large baskets and 21.4% on small. Weekday and weekend orders transfer almost fully (32.9% to 35.2%). Training on all orders gives 30-35% everywhere.
+  - *Fulfilment centre (Online Retail II):* the gaps are smaller. The worst drop is 7.0 points (small-basket orders, trained on non-UK orders: 40.9% vs 48.0%).
+  - We did not test why baskets of different size want different layouts; a plausible reading is that small baskets reward putting the fastest single items closest while large baskets reward grouping items bought together. It is a reason to re-slot when the customer mix changes.
+- **Cross-dataset.** A layout cannot move between datasets because the SKUs differ, so we compare the method and its settings. The 36 weight settings are ranked on each dataset; Spearman correlation between datasets is 0.74-0.85 for walking distance and 0.88-0.99 for fill rate and golden-zone share. The best distance setting differs by dataset (affinity 3 / best-fit 0 on Online Retail II; 1.5 / 0.5 on Instacart; 1.5 / 0 on the synthetic dark store), so the weights are a sensible default, not a universal optimum.
+- **Gain by dataset** (Full vs random, 95% CI): Online Retail II 45.5% [44.9, 46.0]; synthetic dark store 47.9% [47.2, 48.7]; Instacart 33.9% [33.4, 34.5]. Baskets differ (19.8, 3.5 and 5.9 lines per order) and so does demand concentration (top 20% of SKUs carry 47%, 69% and 56% of picks).
+- **Forecasting and re-slotting on Instacart.** LightGBM did not beat the naive baselines there (wMAPE 97.8% vs 60.8% for the 4-week mean), so the planner fell back to the 4-week mean, and neither the re-slotting replay nor the surge test found a swap worth its relocation cost. We report that as is.
+
 ## 8. Complexity (N SKUs, M bins, b lines per order)
 
 | Component | Complexity | Measured (N=1,500, M=4,000) |
@@ -170,6 +181,7 @@ Still missing for production use: login and per-company data separation, an on-d
 | Baseline vs optimized with metrics | sections 5-6; CIs and sensitivity |
 | Interactive dashboard | `web/` (Results, Layout with rack elevation, Pick path, Data analysis, Constraints, Forecast & re-slotting, Method) |
 | Backend, database, integration | `slotdb/`, `api/index.py`, `scripts/seed_db.py`; end-to-end test `tests/test_e2e.py` |
+| Cohort and dataset generalization | section 7c; Generalization tab; `core/extras.py` (`cross_cohort`), `/api/compare` |
 | EDA (Pareto, co-occurrence, volumetric density) | "Data analysis" tab, `eda` artifact |
 | Documentation (architecture, constraints, complexity, EDA insights, trade-offs) | this document |
 | Deployed product | `vercel.json`, README "Deploy" |
@@ -177,6 +189,6 @@ Still missing for production use: login and per-company data separation, an on-d
 ## 11. Reproduce
 
     pip install -r requirements-engine.txt
-    pytest -q tests                                              # 34 tests, ~1 min
+    pytest -q tests                                              # 37 tests, ~1 min
     python scripts/seed_db.py --orders data/raw/online_retail_II.csv   # needs DATABASE_URL (or SQLite default)
     uvicorn api.index:app --port 8000 & (cd web && npm install && npm run dev)

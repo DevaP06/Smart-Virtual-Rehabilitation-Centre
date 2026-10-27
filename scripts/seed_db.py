@@ -15,21 +15,34 @@ from dotenv import load_dotenv  # noqa: E402
 
 load_dotenv()
 
-from core.experiment import PROFILES, run_experiment  # noqa: E402
+from core.experiment import PROFILES, profile_cfg, run_experiment  # noqa: E402
 from slotdb.models import make_engine, session_factory  # noqa: E402
 from slotdb.save import save_run  # noqa: E402
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--profile", choices=list(PROFILES), help="default: all")
 ap.add_argument("--orders", help="Online Retail II CSV for the fulfilment_centre profile")
+ap.add_argument("--instacart", help="folder with the Instacart Market Basket CSVs: adds the 'grocery' scenario on real baskets")
 ap.add_argument("--fast", action="store_true", help="short solver time limits (smoke test)")
 a = ap.parse_args()
 
 Session = session_factory(make_engine())
-for prof in ([a.profile] if a.profile else PROFILES):
+for prof in ([a.profile] if a.profile else [p for p in PROFILES if p != "grocery" or a.instacart]):
     real = a.orders if prof == "fulfilment_centre" else None
-    print(f"== {prof} ({'Online Retail II' if real else 'synthetic orders'})")
+    kw = {}
+    if prof == "grocery":
+        if not a.instacart:
+            sys.exit("the grocery scenario needs --instacart <folder>")
+        from core.data import make_warehouse
+        from core.instacart import load_instacart
+        c = profile_cfg(prof)
+        orders, skus = load_instacart(a.instacart, c, n_orders=c["n_orders"], n_sku=c["n_sku"])
+        kw["tables"] = (orders, skus, make_warehouse(c))
+        dataset = "Instacart Market Basket (Kaggle)"
+    else:
+        dataset = "Online Retail II (UCI)" if real else "synthetic (seeded)"
+    print(f"== {prof} ({dataset})")
     R = run_experiment(prof, orders_path=real, regen=True, n_seeds=3 if a.fast else 5,
-                       cp_time=5 if a.fast else 20, ls_seconds=5 if a.fast else 30)
-    rid = save_run(Session, R, "Online Retail II (UCI)" if real else "synthetic (seeded)")
+                       cp_time=5 if a.fast else 20, ls_seconds=5 if a.fast else 30, **kw)
+    rid = save_run(Session, R, dataset)
     print(f"saved run {rid}: best by distance = {R['best']}, total {R['timing']['total']} s")

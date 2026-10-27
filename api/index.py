@@ -139,6 +139,67 @@ def moves(run_id: int, to: str = "Full", format: str = "csv", frm: str = Query("
     return _csv(out, f"moves_run{run_id}_{frm}_to_{to}.csv") if format == "csv" else dict(moves=out, n_moves=len(out), n_skus=len(b))
 
 
+def _ranks(xs):
+    order = sorted(range(len(xs)), key=lambda i: xs[i])
+    r, i = [0.0] * len(xs), 0
+    while i < len(order):
+        j = i
+        while j + 1 < len(order) and xs[order[j + 1]] == xs[order[i]]:
+            j += 1
+        for k in range(i, j + 1):
+            r[order[k]] = (i + j) / 2 + 1          # average rank for ties
+        i = j + 1
+    return r
+
+
+def _spearman(a, b):
+    ra, rb = _ranks(a), _ranks(b)
+    n = len(a)
+    ma, mb = sum(ra) / n, sum(rb) / n
+    cov = sum((x - ma) * (y - mb) for x, y in zip(ra, rb))
+    va, vb = sum((x - ma) ** 2 for x in ra), sum((y - mb) ** 2 for y in rb)
+    return cov / (va * vb) ** 0.5 if va and vb else None
+
+
+@app.get("/api/compare")
+def compare(db=Depends(get_db)):
+    """Latest run of each scenario side by side, and how well the objective-weight settings transfer between them."""
+    latest = {}
+    for r in db.scalars(select(Run).order_by(Run.id)):
+        latest[r.profile] = r                                   # last write wins = newest run per scenario
+    rows, grids = [], {}
+    for prof, r in latest.items():
+        ci = db.scalar(select(Ci).where(Ci.run_id == r.id, Ci.policy == r.summary["headline"], Ci.routing == "return"))
+        b2 = db.scalar(select(Ci).where(Ci.run_id == r.id, Ci.policy == "B2_abc", Ci.routing == "return"))
+        kp = {(k.policy, k.metric): k.value for k in db.scalars(select(Kpi).where(Kpi.run_id == r.id))}
+        eda = db.scalar(select(Artifact).where(Artifact.run_id == r.id, Artifact.kind == "eda")).payload
+        tr = db.scalar(select(Artifact).where(Artifact.run_id == r.id, Artifact.kind == "tradeoff"))
+        h = r.summary["headline"]
+        grids[prof] = tr.payload if tr else None
+        rows.append(dict(
+            run_id=r.id, profile=prof, dataset=r.dataset, n_skus=r.summary["n_skus"], n_orders=r.summary["n_orders"],
+            lines_per_order=eda["baskets"]["mean_lines"], single_line_pct=eda["baskets"]["single_line_share"],
+            top20_share=eda["top20pct_share"], hazard_pct=eda["hazard_share"],
+            full_reduction=dict(pct=ci.reduction_pct, lo=ci.reduction_ci_low, hi=ci.reduction_ci_high) if ci else None,
+            abc_reduction=b2.reduction_pct if b2 else None,
+            time_reduction_pct=100 * (1 - kp[(h, "avg_route_time_s")] / kp[("B0_random", "avg_route_time_s")]),
+            fill_rate=kp[(h, "fill_rate_pct")], pair_distance=kp[(h, "pair_distance_m")]))
+    corr = {}
+    for m in ("avg_distance_per_order_m", "fill_rate_pct", "class_a_golden_share_pct"):
+        pairs = []
+        profs = [p for p in grids if grids[p]]
+        for i, a in enumerate(profs):
+            for b in profs[i + 1:]:
+                ga = {(g["lam"], g["mu"], g["erg"]): g[m] for g in grids[a]}
+                gb = {(g["lam"], g["mu"], g["erg"]): g[m] for g in grids[b]}
+                keys = sorted(set(ga) & set(gb))
+                pairs.append(dict(a=a, b=b, rho=_spearman([ga[k] for k in keys], [gb[k] for k in keys]), n=len(keys)))
+        corr[m] = pairs
+    best = {p: min(g, key=lambda x: x["avg_distance_per_order_m"]) for p, g in grids.items() if g}
+    return dict(datasets=rows, rank_correlation=corr,
+                best_setting={p: dict(lam=b["lam"], mu=b["mu"], erg=b["erg"]) for p, b in best.items()})
+
+
 def _artifact(db, run_id, kind):
     _run(db, run_id)
     a = db.scalar(select(Artifact).where(Artifact.run_id == run_id, Artifact.kind == kind))
@@ -170,6 +231,11 @@ def sensitivity(run_id: int, db=Depends(get_db)):
 @app.get("/api/runs/{run_id}/tradeoff")
 def tradeoff(run_id: int, db=Depends(get_db)):
     return _artifact(db, run_id, "tradeoff")
+
+
+@app.get("/api/runs/{run_id}/cohort")
+def cohort(run_id: int, db=Depends(get_db)):
+    return _artifact(db, run_id, "cohort")
 
 
 @app.get("/api/runs/{run_id}/surge")

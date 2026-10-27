@@ -125,3 +125,29 @@ def test_explain_endpoint(client, result):
 def test_surge_endpoint_exists(client):
     r = client.get("/api/runs/1/surge")
     assert r.status_code == 200          # null when the period is too short for the stress test (dark-store preset)
+
+
+def test_cross_cohort_matrix(client):
+    c = client.get("/api/runs/1/cohort").json()
+    assert c["violations"] == 0 and len(c["cohorts"]) >= 2 and "all orders" in c["train_rows"]
+    for x in c["train_rows"]:
+        for y in c["cohorts"]:
+            cell = c["matrix"][x][y]
+            assert -5 < cell["reduction_pct"] < 100 and cell["n_test"] >= 300
+    # a layout trained on a cohort should do at least as well on that cohort as the worst layout trained elsewhere
+    for y in c["cohorts"]:
+        worst = min(c["matrix"][x][y]["reduction_pct"] for x in c["cohorts"])
+        assert c["matrix"][y][y]["reduction_pct"] >= worst - 1e-9
+
+
+def test_compare_endpoint(client):
+    j = client.get("/api/compare").json()
+    assert len(j["datasets"]) == 1 and j["datasets"][0]["full_reduction"]["pct"] > 20
+    assert j["rank_correlation"]["avg_distance_per_order_m"] == []          # needs at least two scenarios
+
+
+def test_rank_correlation_math():
+    from api.index import _spearman
+    assert abs(_spearman([1, 2, 3, 4], [10, 20, 30, 40]) - 1) < 1e-9
+    assert abs(_spearman([1, 2, 3, 4], [4, 3, 2, 1]) + 1) < 1e-9
+    assert abs(_spearman([1, 2, 2, 4], [1, 2, 2, 4]) - 1) < 1e-9             # ties
