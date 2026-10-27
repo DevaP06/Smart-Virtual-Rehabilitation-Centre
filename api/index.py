@@ -210,7 +210,7 @@ if os.path.isdir(_dist):
                 for h in ("etag", "last-modified"):
                     if h in resp.headers:
                         del resp.headers[h]
-            elif path.startswith("assets/"):
+            elif "assets/" in path:
                 resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"   # content-hashed names
             return resp
 
