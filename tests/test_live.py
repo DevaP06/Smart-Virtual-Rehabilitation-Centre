@@ -468,3 +468,22 @@ def test_api_setup_wizard_end_to_end(client):
     assert r.status_code == 200
     assert client.get("/api/live/templates/products.csv").status_code == 200
     assert client.get("/api/live/templates/nothing.csv").status_code == 404
+
+
+def test_results_dashboard_stays_up_if_the_live_module_cannot_load(monkeypatch, tmp_path):
+    import importlib
+    import sys
+    monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_path / 'x.db'}")
+    monkeypatch.setitem(sys.modules, "server.live_routes", None)               # makes `import server.live_routes` fail
+    sys.modules.pop("api.index", None)
+    try:
+        api = importlib.import_module("api.index")
+        c = TestClient(api.app)
+        r = c.get("/api/live/status")
+        assert r.status_code == 503 and "could not start" in r.json()["detail"]["message"]
+        assert c.post("/api/live/orders", json={}).status_code == 503
+        h = c.get("/api/health").json()
+        assert h["status"] == "ok" and h["live"] != "ok"                       # the existing endpoints keep working
+        assert c.get("/api/runs").status_code == 200
+    finally:
+        sys.modules.pop("api.index", None)                                    # later tests import a clean copy

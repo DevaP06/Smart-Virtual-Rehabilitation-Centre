@@ -43,7 +43,7 @@ def _run(db, run_id):
 
 @app.get("/api/health")
 def health(db=Depends(get_db)):
-    return {"status": "ok", "runs": db.scalar(select(func.count()).select_from(Run))}
+    return {"status": "ok", "runs": db.scalar(select(func.count()).select_from(Run)), "live": "ok" if _live_error is None else _live_error}
 
 
 @app.get("/api/runs")
@@ -257,9 +257,19 @@ def paths(run_id: int, db=Depends(get_db)):
     return _artifact(db, run_id, "paths")
 
 
-from server.live_routes import make_router  # noqa: E402
+# Live operations: /api/live/... (must be registered before the static mount below). If that module cannot load on a deployment
+# (a missing or oversized dependency, say) the results dashboard must stay up: the live routes then answer 503 with the reason.
+_live_error = None
+try:
+    from server.live_routes import make_router  # noqa: E402
 
-app.include_router(make_router(get_db))        # live operations: /api/live/... (must be registered before the static mount below)
+    app.include_router(make_router(get_db))
+except Exception as _e:  # noqa: BLE001
+    _live_error = f"{type(_e).__name__}: {_e}"[:300]
+
+    @app.api_route("/api/live/{path:path}", methods=["GET", "POST"], include_in_schema=False)
+    def live_unavailable(path: str):
+        raise HTTPException(503, detail=dict(message=f"Live operations could not start on this deployment ({_live_error}).", data=None))
 
 # Serve the built React app from the same app (Vercel runs the whole project as this one FastAPI function).
 _dist = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "dist")
