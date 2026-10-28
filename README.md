@@ -7,7 +7,7 @@ Maps SKUs to warehouse bins under hard physical and safety rules, using demand v
 
 ## Dashboard tabs
 
-**Operations** (live): Live Warehouse (3D live stock status) · Inventory · Receiving (putaway of new products) · Work Orders (refills and re-slotting) · **Setup** (import your own bins, products, orders and stock). See [docs/LIVE_OPERATIONS.md](docs/LIVE_OPERATIONS.md).
+**Operations** (live): Live Warehouse (3D live stock status) · Inventory · Receiving (putaway of new products) · Work Orders (refills and re-slotting) · **Setup** (import your own bins, products, orders and stock). Managers: start with [docs/MANAGER_QUICK_START.md](docs/MANAGER_QUICK_START.md); details in [docs/LIVE_OPERATIONS.md](docs/LIVE_OPERATIONS.md).
 
 **Results** (offline analysis): Results (ablation ladder with CIs) · Business impact (editable ROI) · Layout (heatmaps, rack elevation, per-SKU explanation, CSV downloads) · Pick path (animated) · Trade-offs (weight explorer with Pareto front) · Demand surge (stress test) · Generalization (cross-cohort matrix, cross-dataset comparison) · Data analysis · Constraints · Forecast & re-slotting · Method.
 
