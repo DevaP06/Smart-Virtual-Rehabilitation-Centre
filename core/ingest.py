@@ -64,10 +64,13 @@ def _num(df, cols, table, rep, positive=True):
     return df
 
 
-def validate(orders, skus, locs, heavy_kg=15.0, levels=5):
-    """Returns (Report, (orders, skus, locs) normalised) . Tables are only usable when report.ok."""
+def validate(orders, skus, locs, heavy_kg=15.0, levels=5, min_days=28):
+    """Returns (Report, (orders, skus, locs) normalised) . Tables are only usable when report.ok.
+    orders=None skips the order checks (a warehouse set up before it has any order history); min_days is the history needed."""
     rep = Report()
-    orders, skus, locs = orders.copy(), skus.copy(), locs.copy()
+    no_orders = orders is None
+    orders = pd.DataFrame(columns=ORDERS_REQ) if no_orders else orders.copy()
+    skus, locs = skus.copy(), locs.copy()
 
     # ---- SKU master ----
     if _need(skus, SKU_REQ, "sku_master", rep):
@@ -138,7 +141,7 @@ def validate(orders, skus, locs, heavy_kg=15.0, levels=5):
             rep.err("locations", "SKUs with a hazard class exist but no location is in Zone 'HAZ'")
 
     # ---- orders ----
-    if _need(orders, ORDERS_REQ, "orders", rep):
+    if not no_orders and _need(orders, ORDERS_REQ, "orders", rep):
         orders = _num(orders, ["Quantity"], "orders", rep)
         ts = pd.to_datetime(orders.Timestamp, errors="coerce")
         if ts.isna().any():
@@ -156,8 +159,8 @@ def validate(orders, skus, locs, heavy_kg=15.0, levels=5):
                     + ("" if share > MISSING_ORDER_SKU_LIMIT else "; they are dropped"), orders.index[unk])
                 orders = orders[~unk]
         n_days = (orders.Timestamp.max() - orders.Timestamp.min()).days if len(orders) else 0
-        if n_days < 28:
-            rep.err("orders", f"only {n_days} days of orders; at least 28 are needed for a train/test split and weekly forecasts")
+        if n_days < min_days:
+            rep.err("orders", f"only {n_days} days of orders; at least {min_days} are needed for a train/test split and weekly forecasts")
         if orders.drop_duplicates(["Order_ID", "SKU_ID"]).shape[0] < len(orders):
             orders = orders.groupby(["Order_ID", "SKU_ID"], as_index=False).agg(Quantity=("Quantity", "sum"), Timestamp=("Timestamp", "min"))
             rep.warn("orders", "repeated (Order_ID, SKU_ID) lines were merged")

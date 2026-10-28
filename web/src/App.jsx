@@ -14,8 +14,14 @@ import Impact from "./tabs/Impact.jsx";
 import Tradeoff from "./tabs/Tradeoff.jsx";
 import Stress from "./tabs/Stress.jsx";
 import Generalize from "./tabs/Generalize.jsx";
+import LiveWarehouse from "./tabs/LiveWarehouse.jsx";
+import Inventory from "./tabs/Inventory.jsx";
+import Receiving from "./tabs/Receiving.jsx";
+import WorkOrders from "./tabs/WorkOrders.jsx";
+import Setup from "./tabs/Setup.jsx";
 
-// Tab ids are the URL-hash values used before the redesign (#overview, #impact, #layout, #path, #tradeoff, #stress, #general, #eda, #rules, #forecast, #method).
+// Tab ids are the URL-hash values used before the redesign (#overview, #impact, #layout, #path, #tradeoff, #stress, #general, #eda, #rules, #forecast, #method)
+// plus the live-operations pages (#live, #inventory, #receiving, #orders, #setup), which do not use a stored scenario.
 const PAGES = {
   overview: Overview,
   impact: Impact,
@@ -28,6 +34,11 @@ const PAGES = {
   rules: Constraints,
   forecast: Forecast,
   method: Method,
+  live: LiveWarehouse,
+  inventory: Inventory,
+  receiving: Receiving,
+  orders: WorkOrders,
+  setup: Setup,
 };
 
 const ORDER = ["fulfilment_centre", "grocery", "dark_store"];
@@ -109,9 +120,9 @@ export default function App() {
   const rank = (r) => (ORDER.includes(r.profile) ? ORDER.indexOf(r.profile) : 99); // presets first, then company runs
   const sorted = runs.data ? [...runs.data].sort((a, b) => rank(a) - rank(b) || b.id - a.id) : [];
   const id = runId ?? sorted[0]?.id;
-  const detail = useApi(id ? `/api/runs/${id}` : null);
+  const detail = useApi(id && !item.live ? `/api/runs/${id}` : null);
   const Page = PAGES[tab] || Overview;
-  const apiState = runs.loading ? "loading" : runs.error ? "error" : "ok";
+  const apiState = item.live ? "live" : runs.loading ? "loading" : runs.error ? "error" : "ok";
 
   return (
     <div className="app" data-collapsed={collapsed} data-drawer={drawer}>
@@ -120,25 +131,31 @@ export default function App() {
       </button>
       <Sidebar tab={tab} onNavigate={navigate} collapsed={collapsed} onToggleCollapse={toggleCollapse} drawerOpen={drawer} onCloseDrawer={() => setDrawer(false)} />
       <div className="main">
-        <Topbar item={item} runs={sorted} scenarioId={id} onScenario={setRunId} profileLabel={profileLabel} onMenu={() => setDrawer((d) => !d)} drawerOpen={drawer} apiState={apiState} />
+        <Topbar item={item} runs={item.live ? [] : sorted} scenarioId={id} onScenario={setRunId} profileLabel={profileLabel} onMenu={() => setDrawer((d) => !d)} drawerOpen={drawer} apiState={apiState} />
         <main id="main" ref={mainRef} className="content" tabIndex={-1}>
-          <Async state={runs} skeleton="page" label="scenarios">
-            {(list) =>
-              list.length === 0 ? (
-                <EmptyState icon={Database} title="No stored results yet">
-                  The database has no experiment runs. Create them with <code>python scripts/seed_db.py</code>, then reload this page.
-                </EmptyState>
-              ) : (
-                <Async state={detail} skeleton="page" label="this scenario">
-                  {(run) => (
-                    <Boundary key={`${run.id}-${tab}`}>
-                      <Page run={run} />
-                    </Boundary>
-                  )}
-                </Async>
-              )
-            }
-          </Async>
+          {item.live ? (
+            <Boundary key={tab}>
+              <Page />
+            </Boundary>
+          ) : (
+            <Async state={runs} skeleton="page" label="scenarios">
+              {(list) =>
+                list.length === 0 ? (
+                  <EmptyState icon={Database} title="No stored results yet">
+                    The database has no experiment runs. Create them with <code>python scripts/seed_db.py</code>, then reload this page.
+                  </EmptyState>
+                ) : (
+                  <Async state={detail} skeleton="page" label="this scenario">
+                    {(run) => (
+                      <Boundary key={`${run.id}-${tab}`}>
+                        <Page run={run} />
+                      </Boundary>
+                    )}
+                  </Async>
+                )
+              }
+            </Async>
+          )}
         </main>
       </div>
     </div>

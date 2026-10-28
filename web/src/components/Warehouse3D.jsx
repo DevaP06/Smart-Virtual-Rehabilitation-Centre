@@ -8,13 +8,13 @@ import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { EmptyState, fmt } from "../ui.jsx";
 import { Cuboid } from "lucide-react";
 
-const STOPS = ["#440154", "#3b528b", "#21908d", "#5dc963", "#fde725"].map((c) => new THREE.Color(c));
-const ramp = (t) => {
+export const STOPS = ["#440154", "#3b528b", "#21908d", "#5dc963", "#fde725"].map((c) => new THREE.Color(c));
+export const ramp = (t) => {
   const x = Math.min(1, Math.max(0, t)) * (STOPS.length - 1);
   const i = Math.min(STOPS.length - 2, Math.floor(x));
   return STOPS[i].clone().lerp(STOPS[i + 1], x - i);
 };
-const hasWebGL = () => {
+export const hasWebGL = () => {
   try {
     const c = document.createElement("canvas");
     return !!(c.getContext("webgl2") || c.getContext("webgl"));
@@ -24,7 +24,7 @@ const hasWebGL = () => {
 };
 
 const LEVEL_Z = [20, 70, 120, 170, 220];
-const BOX = [0.7, 0.4, 0.5]; // width across the aisle, height, depth along the aisle (metres)
+export const BOX = [0.7, 0.4, 0.5]; // width across the aisle, height, depth along the aisle (metres)
 
 function useGeometry(rows, grid, config, nBins) {
   return useMemo(() => {
@@ -116,7 +116,7 @@ function Ghosts({ ghosts, level, highlight }) {
   );
 }
 
-function Controls({ target, span }) {
+export function Controls({ target, span }) {
   const { camera, gl, invalidate } = useThree();
   useEffect(() => {
     const c = new OrbitControls(camera, gl.domElement);

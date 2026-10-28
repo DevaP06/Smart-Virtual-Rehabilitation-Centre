@@ -46,7 +46,7 @@ export function Sidebar({ tab, onNavigate, collapsed, onToggleCollapse, drawerOp
           ))}
         </nav>
         <div className="sidebar-foot">
-          <div className="sidebar-note">Read-only dashboard. Results are computed offline and stored; nothing runs live here.</div>
+          <div className="sidebar-note">Results pages show analysis computed offline and stored. Operations pages work on live stock and orders.</div>
           <button className="collapse-btn" onClick={onToggleCollapse} aria-expanded={!collapsed} aria-controls="primary-nav" aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}>
             {collapsed ? <ChevronRight size={18} aria-hidden="true" /> : (<><ChevronLeft size={18} aria-hidden="true" /><span className="nav-text">Collapse</span></>)}
           </button>
@@ -60,6 +60,7 @@ export function Sidebar({ tab, onNavigate, collapsed, onToggleCollapse, drawerOp
 const STATUS = {
   loading: ["loading", "Connecting…"],
   ok: ["ok", "Stored results"],
+  live: ["ok", "Live data"],
   error: ["error", "Can't reach the API"],
 };
 

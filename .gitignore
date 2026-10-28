@@ -37,3 +37,8 @@ Instacart/
 Olist/
 *.zip
 *.pkl
+
+# presentation decks and Office lock files (kept local)
+*.pptx
+*.ppt
+~$*

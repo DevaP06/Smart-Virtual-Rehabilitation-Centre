@@ -1,7 +1,17 @@
 // Navigation map. `id` values are the existing URL-hash tab ids: do not rename them.
-import { BarChart3, BookOpen, CalendarClock, LayoutDashboard, Layers, Route, ShieldCheck, SlidersHorizontal, TrendingUp, Wallet, Warehouse } from "lucide-react";
+import { Activity, BarChart3, BookOpen, CalendarClock, ClipboardList, LayoutDashboard, Layers, Package, PackagePlus, Route, ShieldCheck, SlidersHorizontal, TrendingUp, Upload, Wallet, Warehouse } from "lucide-react";
 
+// `live: true` pages work on the live warehouse (stock, orders, work orders), not on a stored experiment run: no scenario selector.
 export const NAV = [
+  {
+    group: "Operations",
+    items: [
+      { id: "live", label: "Live Warehouse", icon: Activity, live: true, title: "Live Warehouse", subtitle: "What is in every bin right now: stock levels, low pick faces, work in progress and alerts" },
+      { id: "inventory", label: "Inventory", icon: Package, live: true, title: "Inventory", subtitle: "Units in every pick face and in reserve. Record sales and corrections; every change is logged" },
+      { id: "receiving", label: "Receiving", icon: PackagePlus, live: true, title: "Receiving", subtitle: "Book a delivery: top up a pick face, or place a new product in the best legal bin" },
+      { id: "orders", label: "Work Orders", icon: ClipboardList, live: true, title: "Work Orders", subtitle: "Refills and re-slotting moves for the floor team, and the nightly planner" },
+    ],
+  },
   {
     group: "Results",
     items: [
@@ -32,6 +42,10 @@ export const NAV = [
       { id: "rules", label: "Constraints", icon: ShieldCheck, title: "Constraints", subtitle: "Independent validator results: every safety and capacity rule, layout by layout" },
       { id: "method", label: "Methodology", icon: BookOpen, title: "Methodology", subtitle: "How a product is assigned to a storage bin, and how the result is tested" },
     ],
+  },
+  {
+    group: "Setup",
+    items: [{ id: "setup", label: "Setup", icon: Upload, live: true, title: "Setup", subtitle: "Import your own warehouse: bins, products, order history and starting stock" }],
   },
 ];
 

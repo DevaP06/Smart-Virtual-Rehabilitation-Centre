@@ -192,3 +192,25 @@ def naive_assign(skus, locs):
     """Unconstrained baseline: SKUs in ID order into locations in ID order (what a careless layout does)."""
     n = len(skus)
     return pd.DataFrame({"SKU_ID": sorted(skus.SKU_ID), "Location_ID": locs.Location_ID.sort_values().values[:n]})
+
+
+def placement_cost(w, st, c, vel, part, s, cand, v=None, terms=False):
+    """Cost of putting SKU `s` in each candidate bin `cand` (an index array): the same formula assign_full(mode='opt') minimises.
+    Used for live putaway, where one SKU is placed into a warehouse that is already stocked. `vel` is the raw velocity series
+    (its mean sets the scale); `v` overrides the SKU's own demand (a new SKU has no history and gets a prior).
+    With terms=True also returns the four parts (distance, shelf, fit, affinity) for explanations."""
+    scale = vel.mean() * w.slot_cost.mean()
+    v = float(vel.get(s, 0.0)) if v is None else float(v)
+    fl = c["v_floor"] * vel.mean()
+    cost = (v + fl) * w.slot_cost[cand] + c["mu_fill"] * scale * (1 - w.tv[s] / w.lvol[cand])
+    aff = np.zeros(len(cand))
+    for p, n in part.get(s, ()):
+        if p in st.placed:
+            j = st.placed[p]
+            d = np.where(w.aisle[cand] == w.aisle[j], abs(w.y[cand] - w.y[j]), w.y[cand] + w.y[j] + abs(w.ax[cand] - w.ax[j]))
+            cost = cost + c["lam_aff"] * n * d
+            aff = aff + c["lam_aff"] * n * d
+    if not terms:
+        return cost
+    return cost, dict(distance=(v + fl) * w.L.Distance_to_Dispatch_Depot.values[cand], shelf=(v + fl) * w.erg[cand],
+                      fit=c["mu_fill"] * scale * (1 - w.tv[s] / w.lvol[cand]), affinity=aff)

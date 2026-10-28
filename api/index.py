@@ -1,7 +1,7 @@
-"""Read-only JSON API over the stored experiment runs (FastAPI). Deployed as a Vercel Python function.
+"""JSON API (FastAPI). Deployed as a Vercel Python function.
 
-The heavy computation (optimizer, simulator, forecasting) runs offline via scripts/seed_db.py and is stored in
-Postgres; this service only reads, so it stays small enough for serverless.
+/api/runs/... is read-only: the heavy computation (optimizer, simulator, forecasting) runs offline via scripts/seed_db.py and is
+stored in Postgres. /api/live/... (server/live_routes.py) is the live warehouse: stock, orders, putaway and work orders.
 """
 import os
 import sys
@@ -19,7 +19,7 @@ from sqlalchemy import func, select  # noqa: E402
 from slotdb.models import Artifact, Ci, Explanation, Kpi, Run, RunLog, Slot, Violation, make_engine, session_factory  # noqa: E402
 
 app = FastAPI(title="Warehouse Slotting API", root_path="")
-app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["GET"], allow_headers=["*"])   # writes are same-origin only (the dashboard is served from here)
 
 _engine = None
 _Session = None
@@ -256,6 +256,10 @@ def explain(run_id: int, sku: str, db=Depends(get_db)):
 def paths(run_id: int, db=Depends(get_db)):
     return _artifact(db, run_id, "paths")
 
+
+from server.live_routes import make_router  # noqa: E402
+
+app.include_router(make_router(get_db))        # live operations: /api/live/... (must be registered before the static mount below)
 
 # Serve the built React app from the same app (Vercel runs the whole project as this one FastAPI function).
 _dist = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "web", "dist")

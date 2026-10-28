@@ -7,7 +7,9 @@ Maps SKUs to warehouse bins under hard physical and safety rules, using demand v
 
 ## Dashboard tabs
 
-Results (ablation ladder with CIs) · Business impact (editable ROI) · Layout (heatmaps, rack elevation, per-SKU explanation, CSV downloads) · Pick path (animated) · Trade-offs (weight explorer with Pareto front) · Demand surge (stress test) · Generalization (cross-cohort matrix, cross-dataset comparison) · Data analysis · Constraints · Forecast & re-slotting · Method.
+**Operations** (live): Live Warehouse (3D live stock status) · Inventory · Receiving (putaway of new products) · Work Orders (refills and re-slotting) · **Setup** (import your own bins, products, orders and stock). See [docs/LIVE_OPERATIONS.md](docs/LIVE_OPERATIONS.md).
+
+**Results** (offline analysis): Results (ablation ladder with CIs) · Business impact (editable ROI) · Layout (heatmaps, rack elevation, per-SKU explanation, CSV downloads) · Pick path (animated) · Trade-offs (weight explorer with Pareto front) · Demand surge (stress test) · Generalization (cross-cohort matrix, cross-dataset comparison) · Data analysis · Constraints · Forecast & re-slotting · Method.
 
 ## Layout
 
@@ -47,6 +49,14 @@ Format and units: [docs/DATA_FORMAT.md](docs/DATA_FORMAT.md). Templates: `templa
 
 Bad data is rejected with CSV row numbers and **nothing is stored**. A run is also refused if any proposed layout breaks a rule or leaves a SKU unplaced. The result appears in the dashboard's scenario list; the Layout tab downloads the **move list** (current -> proposed) and the **assignment** as CSV.
 
+## Live operations (stock, putaway, re-slotting)
+
+    python scripts/seed_live.py                      # demo warehouse in the database named by DATABASE_URL
+    python scripts/import_live.py --name "My DC" --bins bins.csv --products products.csv [--orders ...] [--stock ...]
+    python scripts/live_job.py                       # nightly re-slotting proposals (also .github/workflows/nightly-reslot.yml)
+
+Or use the Setup page. Stock is the sum of an append-only movement log; sales reduce it, deliveries are put away in the cheapest legal bin, low pick faces raise refill work orders, and the planner proposes swaps that beat the cost of the move. Limits (no login, Postgres-only row locks, estimates): [docs/LIVE_OPERATIONS.md](docs/LIVE_OPERATIONS.md).
+
 ## Deploy (Neon + Vercel)
 
 1. **Database.** Create a Neon project; copy the *pooled* connection string. Put it in a local `.env` as `DATABASE_URL=...` (git-ignored).
@@ -54,7 +64,7 @@ Bad data is rejected with CSV row numbers and **nothing is stored**. A run is al
 3. **Vercel.** Import the GitHub repo. Framework preset "Other"; `vercel.json` sets the build (`web/` -> `web/dist`) and routes `/api/*` to the Python function. In Project Settings > Environment Variables add `DATABASE_URL` (the same string). Deploy.
 4. **Check.** `https://<your-app>.vercel.app/api/health` should return `{"status":"ok","runs":2}`.
 
-The deployed API only reads stored results, so no optimizer runs on Vercel. To refresh results, re-run step 2.
+The experiment pages read stored results, so no optimizer runs on Vercel; to refresh them re-run step 2. The live pages need the demo warehouse once: `python scripts/seed_live.py` (new tables are created automatically).
 
 ## Docker
 
@@ -62,7 +72,7 @@ The deployed API only reads stored results, so no optimizer runs on Vercel. To r
 
 ## API
 
-`GET /api/health`, `/api/runs`, `/api/runs/{id}`, `/api/runs/{id}/kpis`, `/violations`, `/tradeoff`, `/surge`, `/cohort`, `/explain/{sku}`, `/api/compare`, `/layout?policy=`, `/assignment?policy=` (CSV), `/moves?from=&to=` (CSV), `/eda`, `/forecast`, `/reslot`, `/sensitivity`, `/paths`.
+`GET /api/health`, `/api/runs`, `/api/runs/{id}`, `/api/runs/{id}/kpis`, `/violations`, `/tradeoff`, `/surge`, `/cohort`, `/explain/{sku}`, `/api/compare`, `/layout?policy=`, `/assignment?policy=` (CSV), `/moves?from=&to=` (CSV), `/eda`, `/forecast`, `/reslot`, `/sensitivity`, `/paths`. Live operations: `/api/live/...` (see docs/LIVE_OPERATIONS.md).
 
 ## Data honesty
 
