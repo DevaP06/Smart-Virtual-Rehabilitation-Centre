@@ -60,11 +60,12 @@ export default function Explain({ run, policy }) {
             {top.slice(0, 200).map((r) => <option key={r.sku} value={r.sku}>{`${r.category} · class ${r.abc}`}</option>)}
           </datalist>
         </label>
-        <span>The 200 fastest-moving SKUs are listed; any SKU id works.</span>
+        <span>The 200 fastest-moving SKUs are listed; type a SKU id to search.</span>
       </div>
-      {meta && (
-        <Async state={ex}>{(e) => <Body e={e} meta={meta} />}</Async>
+      {cur && !meta && (
+        <Note kind="warn">No SKU "{cur}" in this scenario. Pick one from the list: the 200 fastest-moving SKUs are suggested as you type.</Note>
       )}
+      {meta && <Async state={ex}>{(e) => <Body e={e} meta={meta} />}</Async>}
     </>
   );
 }
