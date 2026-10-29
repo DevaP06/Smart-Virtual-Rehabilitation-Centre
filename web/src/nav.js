@@ -51,6 +51,14 @@ export const NAV = [
 
 export const NAV_ITEMS = NAV.flatMap((g) => g.items);
 export const DEFAULT_TAB = "overview";
+export const HOME = "home"; // landing page: not a dashboard tab, so it is not in NAV
+
+const PRESET_ORDER = ["fulfilment_centre", "grocery", "dark_store"];
+/** Presets first, then company runs, newest first. Shared by the dashboard and the landing page so both pick the same default scenario. */
+export const sortRuns = (runs) => {
+  const rank = (r) => (PRESET_ORDER.includes(r.profile) ? PRESET_ORDER.indexOf(r.profile) : 99);
+  return [...runs].sort((a, b) => rank(a) - rank(b) || b.id - a.id);
+};
 export const findItem = (id) => NAV_ITEMS.find((i) => i.id === id) || NAV_ITEMS[0];
 
 // Scenario names shown in the selector and in page headers.

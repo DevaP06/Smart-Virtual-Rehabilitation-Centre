@@ -1,7 +1,7 @@
-import { Component, useCallback, useEffect, useRef, useState } from "react";
+import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState } from "react";
 import { Database } from "lucide-react";
 import { Async, EmptyState, ErrorPanel, useApi } from "./ui.jsx";
-import { DEFAULT_TAB, NAV_ITEMS, findItem, scenarioLabel } from "./nav.js";
+import { DEFAULT_TAB, HOME, NAV_ITEMS, findItem, scenarioLabel, sortRuns } from "./nav.js";
 import { Sidebar, Topbar } from "./components/Shell.jsx";
 import Overview from "./tabs/Overview.jsx";
 import Layout from "./tabs/Layout.jsx";
@@ -19,6 +19,9 @@ import Inventory from "./tabs/Inventory.jsx";
 import Receiving from "./tabs/Receiving.jsx";
 import WorkOrders from "./tabs/WorkOrders.jsx";
 import Setup from "./tabs/Setup.jsx";
+
+// The landing page (and its 3D scene) loads only for visitors who see it; direct links to a dashboard page never download it.
+const Landing = lazy(() => import("./landing/LandingPage.jsx"));
 
 // Tab ids are the URL-hash values used before the redesign (#overview, #impact, #layout, #path, #tradeoff, #stress, #general, #eda, #rules, #forecast, #method)
 // plus the live-operations pages (#live, #inventory, #receiving, #orders, #setup), which do not use a stored scenario.
@@ -41,7 +44,6 @@ const PAGES = {
   setup: Setup,
 };
 
-const ORDER = ["fulfilment_centre", "grocery", "dark_store"];
 const profileLabel = scenarioLabel;
 
 class Boundary extends Component {
@@ -51,12 +53,24 @@ class Boundary extends Component {
   }
   render() {
     if (!this.state.error) return this.props.children;
-    return <ErrorPanel error={this.state.error} label="this page" onRetry={() => this.setState({ error: null })} />;
+    return (
+      <>
+        <ErrorPanel error={this.state.error} label="this page" onRetry={() => this.setState({ error: null })} />
+        {this.props.escape && (
+          <p style={{ textAlign: "center" }}>
+            <a className="btn" href={`#${DEFAULT_TAB}`}>
+              Open the dashboard instead
+            </a>
+          </p>
+        )}
+      </>
+    );
   }
 }
 
 const readTab = () => {
   const h = window.location.hash.slice(1);
+  if (!h || h === HOME) return HOME; // no hash: the landing page. Every existing #tab link still opens its page.
   return NAV_ITEMS.some((i) => i.id === h) ? h : DEFAULT_TAB;
 };
 const readCollapsed = () => {
@@ -68,16 +82,17 @@ const readCollapsed = () => {
 };
 
 export default function App() {
-  const runs = useApi("/api/runs");
-  const [runId, setRunId] = useState(() => Number(new URLSearchParams(window.location.search).get("run")) || null); // ?run=<id> picks a scenario
   const [tab, setTab] = useState(readTab);
+  const home = tab === HOME;
+  const runs = useApi(home ? null : "/api/runs"); // the landing page loads its own results; no duplicate request
+  const [runId, setRunId] = useState(() => Number(new URLSearchParams(window.location.search).get("run")) || null); // ?run=<id> picks a scenario
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const [drawer, setDrawer] = useState(false);
   const mainRef = useRef(null);
 
   // Hash navigation: pushing a hash makes back/forward work; this listener keeps the page in step with the URL.
   useEffect(() => {
-    if (!window.location.hash) window.history.replaceState(null, "", `#${DEFAULT_TAB}`);
+    if (!window.location.hash) window.history.replaceState(null, "", `#${HOME}`);
     const onHash = () => {
       setTab(readTab());
       setDrawer(false);
@@ -87,10 +102,10 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
 
-  const item = findItem(tab);
+  const item = home ? { id: HOME, live: true, title: "The Living Warehouse", subtitle: "" } : findItem(tab);
   useEffect(() => {
-    document.title = `${item.title} · Warehouse Slotting Engine`;
-  }, [item]);
+    document.title = home ? "The Living Warehouse · Every slot has a strategy" : `${item.title} · The Living Warehouse`;
+  }, [item, home]);
 
   useEffect(() => {
     if (!drawer) return undefined;
@@ -117,11 +132,19 @@ export default function App() {
       return !c;
     });
 
-  const rank = (r) => (ORDER.includes(r.profile) ? ORDER.indexOf(r.profile) : 99); // presets first, then company runs
-  const sorted = runs.data ? [...runs.data].sort((a, b) => rank(a) - rank(b) || b.id - a.id) : [];
+  const sorted = runs.data ? sortRuns(runs.data) : [];
   const id = runId ?? sorted[0]?.id;
   const detail = useApi(id && !item.live ? `/api/runs/${id}` : null);
   const Page = PAGES[tab] || Overview;
+
+  if (home)
+    return (
+      <Boundary key="home" escape>
+        <Suspense fallback={<div className="landing-boot" role="status">Loading…</div>}>
+          <Landing onEnter={navigate} />
+        </Suspense>
+      </Boundary>
+    );
   const apiState = item.live ? "live" : runs.loading ? "loading" : runs.error ? "error" : "ok";
 
   return (

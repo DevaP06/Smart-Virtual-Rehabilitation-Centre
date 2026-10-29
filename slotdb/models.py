@@ -6,8 +6,19 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 from sqlalchemy.pool import NullPool
 
 
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
 def db_url():
-    url = os.environ.get("DATABASE_URL", "sqlite:///data/slotting.db")
+    url = os.environ.get("DATABASE_URL")
+    if not url:
+        # Local default: data/slotting.db in the repo, wherever the server was started from (a relative path made every
+        # request fail with a 500 "unable to open database file" when uvicorn ran from another folder).
+        try:
+            os.makedirs(os.path.join(_ROOT, "data"), exist_ok=True)
+        except OSError:
+            pass   # read-only file system: let the connection error say so
+        url = "sqlite:///" + os.path.join(_ROOT, "data", "slotting.db").replace("\\", "/")
     if url.startswith("postgres://"):
         url = "postgresql://" + url[len("postgres://"):]
     if url.startswith("postgresql://"):                      # use the psycopg 3 driver

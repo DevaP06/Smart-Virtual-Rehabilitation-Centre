@@ -132,11 +132,11 @@ export default function Tradeoff({ run }) {
                   {
                     type: "scatter", mode: "markers", name: "Pareto front", x: front.map((g) => g[xk]), y: front.map((g) => g[yk]),
                     text: front.map((g) => `affinity ${g.lam}, best-fit ${g.mu}, golden ${g.erg}`), hovertemplate: "Pareto front<br>%{text}<br>%{x:.1f}, %{y:.1f}<extra></extra>",
-                    marker: { size: 13, color: COLORS.good, line: { color: "#0b1220", width: 1 } },
+                    marker: { size: 13, color: COLORS.good, line: { color: COLORS.surface, width: 1 } },
                   },
                   cur && {
                     type: "scatter", mode: "markers", name: "selected", x: [cur[xk]], y: [cur[yk]],
-                    hovertemplate: "Selected setting<br>%{x:.1f}, %{y:.1f}<extra></extra>", marker: { size: 20, color: COLORS.accent, symbol: "star", line: { color: "#fff", width: 1 } },
+                    hovertemplate: "Selected setting<br>%{x:.1f}, %{y:.1f}<extra></extra>", marker: { size: 20, color: COLORS.accent, symbol: "star", line: { color: COLORS.surface, width: 1 } },
                   },
                 ].filter(Boolean)}
                 layout={{

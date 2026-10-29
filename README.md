@@ -39,6 +39,8 @@ Maps SKUs to warehouse bins under hard physical and safety rules, using demand v
 
     uvicorn api.index:app --port 8000     # API (also serves web/dist when built)
     cd web && npm install && npm run dev  # dashboard on http://localhost:5173 (proxies /api to :8000)
+    # port 8000 taken (for example by Docker)? run the API on another port and point the dev server at it:
+    #   uvicorn api.index:app --port 8765     then     API_URL=http://127.0.0.1:8765 npm run dev   (PowerShell: $env:API_URL="http://127.0.0.1:8765"; npm run dev)
 
 ## Run it on your own warehouse data
 

@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
-import { ChevronLeft, ChevronRight, Menu, Warehouse, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Menu, X } from "lucide-react";
 import { NAV } from "../nav.js";
+import Logo from "./Logo.jsx";
+import ThemeToggle from "./ThemeToggle.jsx";
 import { Select } from "../ui.jsx";
 
 export function Sidebar({ tab, onNavigate, collapsed, onToggleCollapse, drawerOpen, onCloseDrawer }) {
@@ -11,15 +13,15 @@ export function Sidebar({ tab, onNavigate, collapsed, onToggleCollapse, drawerOp
   return (
     <>
       <aside className="sidebar" id="primary-nav" aria-label="Sidebar">
-        <div className="brand">
+        <button className="brand" onClick={() => onNavigate("home")} aria-label="The Living Warehouse: back to the home page" title="Home">
           <span className="brand-mark" aria-hidden="true">
-            <Warehouse size={22} />
+            <Logo />
           </span>
-          <div className="brand-text">
-            <div className="brand-name">Warehouse Slotting Engine</div>
-            <div className="brand-sub">Warehouse intelligence</div>
-          </div>
-        </div>
+          <span className="brand-text">
+            <span className="brand-name">The Living Warehouse</span>
+            <span className="brand-sub">Every slot has a strategy</span>
+          </span>
+        </button>
         <nav aria-label="Dashboard sections">
           {NAV.map((g, gi) => (
             <div className="nav-group" key={g.group}>
@@ -66,12 +68,14 @@ const STATUS = {
 
 export function Topbar({ item, runs, scenarioId, onScenario, profileLabel, onMenu, drawerOpen, apiState }) {
   const [state, text] = STATUS[apiState] || STATUS.loading;
+  const group = NAV.find((g) => g.items.some((i) => i.id === item.id))?.group;
   return (
     <header className="topbar">
       <button className="menu-btn" onClick={onMenu} aria-label={drawerOpen ? "Close navigation" : "Open navigation"} aria-expanded={drawerOpen} aria-controls="primary-nav">
         {drawerOpen ? <X size={20} aria-hidden="true" /> : <Menu size={20} aria-hidden="true" />}
       </button>
       <div className="topbar-title">
+        {group && <div className="crumb">{group}</div>}
         <h1>{item.title}</h1>
         <p>{item.subtitle}</p>
       </div>
@@ -91,6 +95,7 @@ export function Topbar({ item, runs, scenarioId, onScenario, profileLabel, onMen
           <i aria-hidden="true" />
           <span>{text}</span>
         </span>
+        <ThemeToggle />
       </div>
     </header>
   );

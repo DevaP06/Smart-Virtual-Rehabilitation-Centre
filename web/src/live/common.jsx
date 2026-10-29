@@ -80,7 +80,10 @@ export function useLive(path, { poll = 0 } = {}) {
 export function useAction() {
   const [s, setS] = useState({ busy: false, error: null, result: null });
   const alive = useRef(true);
-  useEffect(() => () => void (alive.current = false), []);
+  useEffect(() => {
+    alive.current = true; // also true again after a StrictMode remount
+    return () => void (alive.current = false);
+  }, []);
   const run = useCallback(async (fn) => {
     setS({ busy: true, error: null, result: null });
     try {

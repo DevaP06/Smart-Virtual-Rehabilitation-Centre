@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRight, Check, ClipboardList, Eye, History, Play, Repeat, X } from "lucide-react";
 import { Badge, Chip, InfoTip, Note, Panel, Segmented, TableScroll, fmt } from "../ui.jsx";
 import { ActionError, LiveAsync, NoWarehouse, WarehouseBar, ago, call, nf, useAction, useLive, useNow, useWarehouseId, withWh } from "../live/common.jsx";
@@ -32,10 +32,10 @@ function Title({ t }) {
   );
 }
 
-function TaskCard({ t, busy, onAct, closed }) {
+function TaskCard({ t, busy, onAct, closed, fresh }) {
   const now = useNow(30000);
   return (
-    <li className="task">
+    <li className={`task${fresh ? " fresh" : ""}`}>
       <div className="task-head">
         <Badge tone={KIND[t.kind].tone}>{KIND[t.kind].label}</Badge>
         <div className="task-title">
@@ -73,38 +73,132 @@ function TaskCard({ t, busy, onAct, closed }) {
   );
 }
 
-function Proposals({ moves }) {
+/** Why the planner proposes a move, built only from the fields of the response (the same wording the work order would carry). */
+const why = (m) =>
+  m.kind === "swap"
+    ? `${m.a} is predicted to sell about ${m.pred_a.toFixed(0)} lines/week and sits farther out than ${m.b} (${m.pred_b.toFixed(0)}/week)`
+    : `${m.a} is predicted to sell about ${m.pred_a.toFixed(0)} lines/week; a free bin is closer to the depot`;
+
+/** Top-down plan of the warehouse (one dot per bin) with each proposed move drawn as a path from where the product is to where it would go. */
+function MovePlan({ moves, bins, sel, onSelect }) {
+  const g = useMemo(() => {
+    if (!bins?.length) return null;
+    const xs = bins.map((b) => b.x);
+    const ys = bins.map((b) => b.y);
+    const x0 = Math.min(...xs) - 2;
+    const x1 = Math.max(...xs) + 2;
+    const y1 = Math.max(...ys) + 3;
+    const at = new Map(bins.map((b) => [b.loc, b]));
+    const dots = bins.map((b) => `M${(b.x - 0.22).toFixed(2)} ${(y1 - b.y - 0.22).toFixed(2)}h.44v.44h-.44z`).join("");
+    return { x0, w: x1 - x0, h: y1 + 4, y1, at, dots };
+  }, [bins]);
+  if (!g) return null;
+  const P = (loc) => {
+    const b = g.at.get(loc);
+    return b ? [b.x, g.y1 - b.y] : null;
+  };
+  return (
+    <svg className="mv-plan" viewBox={`${g.x0} -1 ${g.w} ${g.h}`} role="img" aria-label={`Top-down plan of the warehouse showing ${moves.length} proposed move${moves.length === 1 ? "" : "s"}. Orange rings mark where a product is now, green markers where it would go.`}>
+      <defs>
+        <marker id="mv-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+          <path d="M0 0L10 5L0 10z" className="mv-arrowhead" />
+        </marker>
+      </defs>
+      <path d={g.dots} className="mv-bins" />
+      <text x={0} y={g.y1 + 1.3} className="mv-note">depot</text>
+      {moves.map((m, i) => {
+        const legs = m.kind === "swap" ? [[m.a_from, m.a_to, m.a], [m.b_from, m.b_to, m.b]] : [[m.a_from, m.a_to, m.a]];
+        const on = sel === i;
+        return (
+          <g key={i} className={`mv${on ? " on" : ""}${sel != null && !on ? " dim" : ""}`} style={{ animationDelay: `${0.25 + i * 0.4}s` }} onClick={() => onSelect(on ? null : i)}>
+            {legs.map(([from, to], k) => {
+              const f = P(from);
+              const t = P(to);
+              if (!f || !t) return null;
+              const lift = k === 0 ? -2.2 : 2.2; // the two halves of a swap bow in opposite directions so both stay visible
+              const c = [(f[0] + t[0]) / 2 + lift, (f[1] + t[1]) / 2];
+              return (
+                <g key={k}>
+                  <path d={`M${f[0]} ${f[1]}Q${c[0]} ${c[1]} ${t[0]} ${t[1]}`} className="mv-line" pathLength="1" markerEnd="url(#mv-arrow)" style={{ animationDelay: `${0.45 + i * 0.4}s` }} />
+                  <circle cx={f[0]} cy={f[1]} r="0.95" className="mv-from" />
+                  <circle cx={t[0]} cy={t[1]} r="0.7" className="mv-to" />
+                </g>
+              );
+            })}
+            {P(m.a_from) && <text x={P(m.a_from)[0] + 1.2} y={P(m.a_from)[1] - 1} className="mv-num">{i + 1}</text>}
+          </g>
+        );
+      })}
+    </svg>
+  );
+}
+
+function Proposals({ moves, bins, onClose }) {
+  const [sel, setSel] = useState(null);
   if (!moves.length) {
-    return <Note kind="good">The layout already matches recent demand: no move is worth its cost right now.</Note>;
+    return (
+      <div className="stack">
+        <Note kind="good">The layout already matches recent demand: no move is worth its cost right now. Nothing would be proposed.</Note>
+        <div className="btn-row">
+          <button className="btn small" onClick={onClose}>
+            Close preview
+          </button>
+        </div>
+      </div>
+    );
   }
   return (
-    <TableScroll label="Proposed moves">
-      <table className="data compact">
-        <caption className="sr-only">Moves the planner would propose, with the weekly saving of each.</caption>
-        <thead>
-          <tr>
-            <th scope="col">Move</th>
-            <th scope="col">Products</th>
-            <th scope="col">From → to</th>
-            <th scope="col" title="Weekly saving after subtracting the cost of the move">Net saving / week</th>
-          </tr>
-        </thead>
-        <tbody>
-          {moves.map((m, i) => (
-            <tr key={i}>
-              <td>
-                <Badge tone="warn">{m.kind === "swap" ? "Swap" : "Move"}</Badge>
-              </td>
-              <td>{m.kind === "swap" ? `${m.a} ↔ ${m.b}` : m.a}</td>
-              <td className="dim">
-                {m.a_from} → {m.a_to}
-              </td>
-              <td>{fmt(m.net_saving, 0)}</td>
+    <div className="stack mv-preview">
+      <div className="btn-row">
+        <Badge tone="warn">Proposal: nothing has moved</Badge>
+        <span className="muted" style={{ fontSize: 13 }}>
+          Orange ring = where the product is now · green = where it would go · numbers match the table
+        </span>
+        <button className="btn small" style={{ marginLeft: "auto" }} onClick={onClose}>
+          <X size={15} aria-hidden="true" /> Close preview
+        </button>
+      </div>
+      <MovePlan moves={moves} bins={bins} sel={sel} onSelect={setSel} />
+      <TableScroll label="Proposed moves">
+        <table className="data compact">
+          <caption className="sr-only">Moves the planner would propose, with the reason and the weekly saving of each. Select a row to highlight it on the plan.</caption>
+          <thead>
+            <tr>
+              <th scope="col">#</th>
+              <th scope="col">Move</th>
+              <th scope="col">Products</th>
+              <th scope="col">From → to</th>
+              <th scope="col" title="Predicted pick lines next week">Predicted lines / week</th>
+              <th scope="col" title="Weekly saving after subtracting the cost of the move">Net saving / week</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </TableScroll>
+          </thead>
+          <tbody>
+            {moves.map((m, i) => (
+              <tr key={i} className={sel === i ? "row-on" : ""} onClick={() => setSel(sel === i ? null : i)} tabIndex={0} onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && (e.preventDefault(), setSel(sel === i ? null : i))} aria-selected={sel === i}>
+                <td>{i + 1}</td>
+                <td>
+                  <Badge tone="warn">{m.kind === "swap" ? "Swap" : "Move"}</Badge>
+                </td>
+                <td>
+                  {m.kind === "swap" ? `${m.a} ↔ ${m.b}` : m.a}
+                  <div className="muted" style={{ fontSize: 12 }}>{why(m)}</div>
+                </td>
+                <td className="dim">
+                  {m.a_from} → {m.a_to}
+                  {m.kind === "swap" && (
+                    <div>
+                      {m.b_from} → {m.b_to}
+                    </div>
+                  )}
+                </td>
+                <td>{m.kind === "swap" ? `${m.pred_a.toFixed(0)} and ${m.pred_b.toFixed(0)}` : m.pred_a.toFixed(0)}</td>
+                <td>{fmt(m.net_saving, 0)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </TableScroll>
+    </div>
   );
 }
 
@@ -117,14 +211,28 @@ export default function WorkOrders() {
   const jobs = useLive(withWh("/api/live/jobs", wh));
   const run = useAction();
   const now = useNow(30000);
+  const previewing = !!run.result?.summary?.dry_run;
+  const bins = useLive(previewing ? withWh("/api/live/bins", wh) : null);
+  const [fresh, setFresh] = useState(null); // ids of the work orders the run that just finished created
+  const before = useRef(new Set());
+  useEffect(() => {
+    if (!fresh) return undefined;
+    const t = setTimeout(() => setFresh(null), 7000);
+    return () => clearTimeout(t);
+  }, [fresh]);
   const refreshAll = () => {
     open.refresh();
     jobs.refresh();
     if (showClosed) closed.refresh();
   };
   const reslot = async (dry) => {
+    before.current = new Set((open.data || []).map((t) => t.id));
+    setFresh(null);
     const out = await run.run(() => call(withWh("/api/live/jobs/reslot", wh), { method: "POST", body: { dry_run: dry } }));
-    if (out && !dry) refreshAll();
+    if (out && !dry) {
+      refreshAll();
+      if (out.summary.proposed) setFresh(true); // only after the server confirmed: the new moves then show as created
+    }
   };
   const [busyId, setBusyId] = useState(null);
   const [msg, setMsg] = useState(null);
@@ -185,11 +293,11 @@ export default function WorkOrders() {
           {run.result && (
             <div className="stack">
               <Note kind={run.result.summary.proposed ? "info" : "good"}>
-                {run.result.summary.dry_run ? "Preview only, nothing was saved. " : "Saved as work orders below. "}
+                {run.result.summary.dry_run ? "Preview only: a proposal, nothing was saved and nothing has moved. " : run.result.summary.proposed ? "Done: the proposals were saved as work orders below (highlighted). The floor still has to do the moves. " : "Done: nothing was worth moving, so no work orders were created. "}
                 {run.result.summary.proposed} move(s) worth doing, about {fmt(run.result.summary.weekly_saving, 0)} metre-equivalents of walking saved per week in total.
                 {run.result.summary.drift_alert ? ` ${run.result.summary.drift_alert}` : ""}
               </Note>
-              {run.result.summary.dry_run && <Proposals moves={run.result.moves} />}
+              {run.result.summary.dry_run && <Proposals moves={run.result.moves} bins={bins.data} onClose={run.clear} />}
             </div>
           )}
           <ActionError error={run.error} />
@@ -219,7 +327,7 @@ export default function WorkOrders() {
             ) : (
               <ul className="task-list" aria-label="Open work orders">
                 {shown.slice(0, 60).map((t) => (
-                  <TaskCard key={t.id} t={t} busy={busyId === t.id} onAct={onAct} />
+                  <TaskCard key={t.id} t={t} busy={busyId === t.id} onAct={onAct} fresh={!!fresh && t.type === "move" && !before.current.has(t.id)} />
                 ))}
                 {shown.length > 60 && <li className="muted">Showing the first 60 of {shown.length}.</li>}
               </ul>

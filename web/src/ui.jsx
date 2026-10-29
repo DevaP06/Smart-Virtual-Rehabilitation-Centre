@@ -4,6 +4,7 @@ import Plotly from "plotly.js-cartesian-dist-min";
 import createPlotlyComponent from "react-plotly.js/factory";
 import { AlertTriangle, CheckCircle2, Inbox, Info, RefreshCw } from "lucide-react";
 import { PLOT_CONFIG, themeLayout } from "./chartTheme.js";
+import { useTheme } from "./theme.js";
 
 const PlotlyPlot = createPlotlyComponent(Plotly);
 export { Plotly };
@@ -319,15 +320,75 @@ export function Legend({ items }) {
 }
 
 /* ------------------------------------------------------------------ charts */
+/* Entrance animation: a chart plays once, the first time it is scrolled into view, from its starting state to its exact data.
+ *   bars   -> grow from the zero baseline (native Plotly transition); error bars appear once they have grown
+ *   lines  -> the line is drawn progressively (frames that only slice the real arrays; no invented points)
+ *   other  -> heatmaps, markers, mixed charts: a short fade (no per-cell animation)
+ * Later data changes (a slider, a new scenario) update the chart normally and do not replay it. */
+const asArr = (v) => (Array.isArray(v) ? v : []);
+function revealKind(data) {
+  if (!data.length) return "fade";
+  const types = data.map((d) => d.type || "scatter");
+  if (types.every((t) => t === "bar")) return "bars";
+  if (types.every((t) => t === "scatter") && data.every((d) => typeof d.mode === "string" && d.mode.includes("lines"))) return "lines";
+  return "fade";
+}
+const barKey = (d) => (d.orientation === "h" ? "x" : "y");
+/** Values the final chart will span on its value axis (stacked bars: the per-category totals). Always includes the zero baseline. */
+function barExtent(data, layout) {
+  const stacked = layout?.barmode === "stack" || layout?.barmode === "relative";
+  const key = (d) => barKey(d);
+  if (!stacked) return [0, ...data.flatMap((d) => asArr(d[key(d)]).filter((v) => typeof v === "number"))];
+  const n = Math.max(...data.map((d) => asArr(d[key(d)]).length), 0);
+  const out = [0];
+  for (let i = 0; i < n; i++) {
+    let pos = 0;
+    let neg = 0;
+    data.forEach((d) => {
+      const v = asArr(d[key(d)])[i];
+      if (typeof v === "number") v >= 0 ? (pos += v) : (neg += v);
+    });
+    out.push(pos, neg);
+  }
+  return out;
+}
+/** The start state of a reveal. An invisible trace carries the FINAL extents so the axes are already right while the data is still zero / short
+ *  (without it the axis autoranges to the starting data and stays wrong after the animation). It is dropped when the reveal ends. */
+function startState(data, kind, layout) {
+  if (kind === "bars") {
+    const ext = barExtent(data, layout);
+    const horiz = data[0]?.orientation === "h";
+    const cat = asArr(data[0]?.[horiz ? "y" : "x"])[0];
+    const ghost = { type: "scatter", mode: "markers", hoverinfo: "skip", showlegend: false, marker: { size: 0, opacity: 0 }, ...(horiz ? { x: ext, y: ext.map(() => cat) } : { x: ext.map(() => cat), y: ext }) };
+    return [
+      ...data.map((d) => ({ ...d, [barKey(d)]: asArr(d[barKey(d)]).map(() => 0), error_x: d.error_x && { ...d.error_x, visible: false }, error_y: d.error_y && { ...d.error_y, visible: false } })),
+      ...(ext.length > 1 && cat !== undefined ? [ghost] : []),
+    ];
+  }
+  if (kind === "lines") {
+    const ghost = { type: "scatter", mode: "markers", hoverinfo: "skip", showlegend: false, marker: { size: 0, opacity: 0 }, x: data.flatMap((d) => asArr(d.x)), y: data.flatMap((d) => asArr(d.y)) };
+    return [...data.map((d) => ({ ...d, x: asArr(d.x).slice(0, 1), y: asArr(d.y).slice(0, 1), text: Array.isArray(d.text) ? d.text.slice(0, 1) : d.text })), ghost];
+  }
+  return data;
+}
+const REVEAL_MS = 750;
+const LINE_FRAMES = 18;
+
 /**
  * Every chart goes through here. It applies the shared theme, picks a shorter height on narrow containers,
  * and re-fits the chart when its container changes size (for example when the sidebar opens or closes).
- * `summary` is a plain-language description for assistive technology.
+ * `summary` is a plain-language description for assistive technology. `reveal="none"` turns the entrance animation off
+ * (charts that run their own animation, such as the pick-path playback, use it).
  */
-export function Plot({ data, layout = {}, height = 360, compactHeight, summary, onInit, config, ...rest }) {
+export function Plot({ data, layout = {}, height = 360, compactHeight, summary, onInit, config, reveal = "auto", ...rest }) {
+  const theme = useTheme();
   const box = useRef(null);
   const gd = useRef(null);
   const [w, setW] = useState(0);
+  const off = reveal === "none" || !!rest.frames || typeof IntersectionObserver === "undefined" || (typeof window !== "undefined" && window.matchMedia?.("(prefers-reduced-motion: reduce)").matches);
+  const [phase, setPhase] = useState(off ? "done" : "wait"); // wait (off screen) -> run (animating) -> done
+  const kind = revealKind(data);
+  const frozen = useRef(null);
   useEffect(() => {
     const el = box.current;
     if (!el || typeof ResizeObserver === "undefined") return undefined;
@@ -343,10 +404,71 @@ export function Plot({ data, layout = {}, height = 360, compactHeight, summary, 
       ro.disconnect();
     };
   }, []);
+  // Wait until a meaningful part of the chart is on screen, then start (once).
+  useEffect(() => {
+    if (phase !== "wait") return undefined;
+    const el = box.current;
+    if (!el) return undefined;
+    const io = new IntersectionObserver(
+      (es) => {
+        if (es.some((e) => e.isIntersecting)) {
+          io.disconnect();
+          frozen.current = { data, kind };
+          setPhase("run");
+        }
+      },
+      { threshold: 0.2 },
+    );
+    io.observe(el);
+    return () => io.disconnect();
+  }); // eslint-disable-line react-hooks/exhaustive-deps -- re-observing is cheap and keeps `data` fresh while waiting
+  useEffect(() => {
+    if (phase !== "run") return undefined;
+    const { data: d, kind: k } = frozen.current;
+    const el = gd.current;
+    let dead = false;
+    const finish = () => !dead && setPhase("done");
+    const guard = setTimeout(finish, REVEAL_MS + 1500); // never leave a chart half drawn
+    if (!el || k === "fade") {
+      const t = setTimeout(finish, 620);
+      return () => {
+        dead = true;
+        clearTimeout(t);
+        clearTimeout(guard);
+      };
+    }
+    if (k === "bars") {
+      Promise.resolve(
+        Plotly.animate(el, { data: d.map((t) => ({ [barKey(t)]: asArr(t[barKey(t)]) })), traces: d.map((_, i) => i) }, { transition: { duration: REVEAL_MS, easing: "cubic-out" }, frame: { duration: REVEAL_MS, redraw: true } }),
+      ).then(finish, finish);
+    } else {
+      const names = [];
+      const frames = [];
+      for (let n = 1; n <= LINE_FRAMES; n++) {
+        const name = `reveal${n}`;
+        names.push(name);
+        frames.push({
+          name,
+          traces: d.map((_, i) => i),
+          data: d.map((t) => {
+            const m = Math.max(1, Math.ceil((asArr(t.x).length * n) / LINE_FRAMES));
+            return { x: asArr(t.x).slice(0, m), y: asArr(t.y).slice(0, m) };
+          }),
+        });
+      }
+      Promise.resolve(Plotly.addFrames(el, frames))
+        .then(() => Plotly.animate(el, names, { frame: { duration: REVEAL_MS / LINE_FRAMES, redraw: false }, transition: { duration: 0 }, mode: "immediate" }))
+        .then(finish, finish);
+    }
+    return () => {
+      dead = true;
+      clearTimeout(guard);
+    };
+  }, [phase]);
   const compact = w > 0 && w < 520;
   const h = compact && compactHeight ? compactHeight : height;
   // Stable objects: the chart library re-initialises whenever it is handed a new layout/config object.
-  const themed = useMemo(() => themeLayout(layout, { height: h, compact }), [layout, h, compact]);
+  const themed = useMemo(() => themeLayout(layout, { height: h, compact }), [layout, h, compact, theme]);
   const cfg = useMemo(() => ({ ...PLOT_CONFIG, ...config }), [config]);
   const style = useMemo(() => ({ width: "100%", height: h }), [h]);
   const handleInit = useCallback(
@@ -359,9 +481,11 @@ export function Plot({ data, layout = {}, height = 360, compactHeight, summary, 
   const handleUpdate = useCallback((_, el) => {
     gd.current = el;
   }, []);
+  // wait: start state; run: the state the animation started from (frozen, so re-renders cannot reset it); done: the real data.
+  const shown = phase === "done" ? data : phase === "run" ? startState(frozen.current.data, frozen.current.kind, layout) : startState(data, kind, layout);
   return (
-    <div ref={box} className="chart" role={summary ? "group" : undefined} aria-label={summary}>
-      <PlotlyPlot data={data} layout={themed} config={cfg} useResizeHandler style={style} onInitialized={handleInit} onUpdate={handleUpdate} {...rest} />
+    <div ref={box} className="chart" data-reveal={kind === "fade" ? phase : "anim"} role={summary ? "group" : undefined} aria-label={summary}>
+      <PlotlyPlot data={shown} layout={themed} config={cfg} useResizeHandler style={style} onInitialized={handleInit} onUpdate={handleUpdate} {...rest} />
     </div>
   );
 }

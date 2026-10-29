@@ -1,24 +1,27 @@
 // One place for how every Plotly chart looks. Charts pass their own data and axes; this only styles them.
 
-export const COLORS = {
-  text: "#eaf0fa",
-  text2: "#b8c4da",
-  muted: "#8d9cb8",
-  grid: "#1d2c48",
-  axis: "#31466b",
-  surface: "#111a2e",
-  panel: "#0a1324",
-  accent: "#22d3ee",
-  blue: "#38bdf8",
-  good: "#34d399",
-  bad: "#fb7185",
-  warn: "#fbbf24",
-  violet: "#a78bfa",
-  slate: "#64748b",
+// Two palettes, one per theme. COLORS is mutated in place by setChartPalette (called from theme.js) so every chart that reads
+// COLORS.* at render time follows the active theme. Semantics: accent = optimized, slate = baseline, warn = attention/selected, bad = violation.
+const PALETTES = {
+  light: {
+    text: "#172b25", text2: "#44564d", muted: "#5e6d65", grid: "#e1e4d8", axis: "#c2c9b9", surface: "#fbfaf5", panel: "#fbfaf5",
+    accent: "#008b68", blue: "#3b7ea6", good: "#0b7a5c", bad: "#bc4a42", warn: "#c4802f", violet: "#7c6bb5", slate: "#7c8a83", onDark: "#f3f1e8", onLight: "#172b25",
+  },
+  dark: {
+    text: "#eaf0e8", text2: "#b0c0b5", muted: "#8a9c91", grid: "#2a3d35", axis: "#3c5448", surface: "#182520", panel: "#111b17",
+    accent: "#35b08c", blue: "#6fb2d6", good: "#4cc3a0", bad: "#ec7f76", warn: "#e1a15a", violet: "#a99bdb", slate: "#8d9fa8", onDark: "#eaf0e8", onLight: "#111b17",
+  },
 };
 
-// Same three layouts get the same colour everywhere (pick path, legends, cards).
-export const POLICY_COLORS = { B0_random: COLORS.bad, B2_abc: COLORS.warn, Full: COLORS.accent };
+export const COLORS = { ...PALETTES.light };
+
+// Same three layouts get the same colour everywhere (pick path, legends, cards). Baseline is blue-grey, best layout is the accent.
+export const POLICY_COLORS = {};
+export function setChartPalette(name) {
+  Object.assign(COLORS, PALETTES[name] || PALETTES.light);
+  Object.assign(POLICY_COLORS, { B0_random: COLORS.slate, B2_abc: COLORS.warn, Full: COLORS.accent });
+}
+setChartPalette("light");
 
 export const FONT = 'Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif';
 

@@ -1,5 +1,5 @@
-import { Component, Suspense, lazy, useMemo, useState } from "react";
-import { Cuboid, Download, Grid3x3, Layers, Search, Warehouse } from "lucide-react";
+import { Component, Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
+import { Cuboid, Download, Grid3x3, Layers, RotateCcw, Search, Warehouse } from "lucide-react";
 import { Async, EmptyState, LABEL, LADDER, Note, Panel, Plot, Segmented, Select, Skeleton, combine, useApi } from "../ui.jsx";
 import { COLORS } from "../chartTheme.js";
 import Explain from "./Explain.jsx";
@@ -121,6 +121,14 @@ export default function Layout({ run }) {
   const [open3d, setOpen3d] = useState(false);
   const [which3d, setWhich3d] = useState("b");
   const [focusAisle, setFocusAisle] = useState(false);
+  const replayTimer = useRef(0);
+  useEffect(() => () => clearTimeout(replayTimer.current), []);
+  // Replay: jump back to the baseline, then switch to the proposed layout so the boxes sort themselves again.
+  const replaySort = () => {
+    clearTimeout(replayTimer.current);
+    setWhich3d("a");
+    replayTimer.current = setTimeout(() => setWhich3d("b"), 700);
+  };
 
   // One request per distinct layout (max three), reusing results instead of fetching the same layout twice.
   const path = (p) => `/api/runs/${run.id}/layout?policy=${p}`;
@@ -211,13 +219,16 @@ export default function Layout({ run }) {
                         onChange={(v) => setFocusAisle(v === "on")}
                         options={[{ value: "off", label: "All aisles" }, { value: "on", label: `Highlight aisle ${aisle}` }]}
                       />
+                      <button className="btn small" onClick={replaySort} title="Show the baseline, then watch the boxes sort into the proposed layout">
+                        <RotateCcw size={15} aria-hidden="true" /> Replay the sort
+                      </button>
                       <span className="muted" style={{ fontSize: 13 }}>
-                        Shelf level filter above applies here too. Choose the aisle in the rack elevation.
+                        Switching layout moves each box from its baseline bin to its proposed bin, fastest sellers first. The shelf level filter above applies here too; choose the aisle in the rack elevation.
                       </span>
                     </div>
                     <Safe>
                       <Suspense fallback={<Skeleton variant="chart" label="the 3D view" />}>
-                        <Warehouse3D rows={rows3d} grid={grid} config={run.config} nBins={run.summary.n_bins} level={level} highlightAisle={focusAisle ? aisle : null} />
+                        <Warehouse3D rows={rows3d} grid={grid} config={run.config} nBins={run.summary.n_bins} level={level} highlightAisle={focusAisle ? aisle : null} animate />
                       </Suspense>
                     </Safe>
                   </div>
